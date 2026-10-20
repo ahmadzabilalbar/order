@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { todayISO } from "@/lib/format";
+import { canEditOrder, todayISO } from "@/lib/format";
 import { getMenu, getNames, getOrders, getSellers, isDemo } from "@/lib/store";
 import { DemoBanner } from "@/components/demo-banner";
 import { OrderList } from "@/components/order-list";
 import { OrderForm } from "./order-form";
 
-export default function Home() {
+export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <>
       <Suspense fallback={<MenuSkeleton />}>
-        <Menu />
+        <Menu searchParams={searchParams} />
       </Suspense>
       {/* Bottom padding keeps the list clear of the mobile cart bar. */}
       <div className="mt-10 pb-28 lg:pb-0">
@@ -22,10 +22,17 @@ export default function Home() {
   );
 }
 
-async function Menu() {
+async function Menu({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   // Read the sheet at request time, not during the build.
   await connection();
-  const [items, names, sellers] = await Promise.all([getMenu(), getNames(), getSellers()]);
+  const { edit } = await searchParams;
+  const [items, names, sellers, orders] = await Promise.all([
+    getMenu(),
+    getNames(),
+    getSellers(),
+    edit ? getOrders() : Promise.resolve([]),
+  ]);
+  const editing = typeof edit === "string" ? orders.find((o) => o.id === edit) : undefined;
   return (
     <>
       {isDemo && <DemoBanner />}
@@ -35,6 +42,8 @@ async function Menu() {
         sellers={sellers.filter((s) => s.active)}
         sellersEnabled={sellers.length > 0}
         today={todayISO()}
+        editing={editing}
+        key={editing?.id ?? "new"}
       />
     </>
   );
@@ -42,7 +51,10 @@ async function Menu() {
 
 async function Orders() {
   await connection();
-  return <OrderList orders={await getOrders()} />;
+  const [orders, sellers] = await Promise.all([getOrders(), getSellers()]);
+  const today = todayISO();
+  const editable = new Set(orders.filter((o) => canEditOrder(o, sellers, today)).map((o) => o.id));
+  return <OrderList orders={orders} editable={editable} />;
 }
 
 function MenuSkeleton() {

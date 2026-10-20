@@ -69,6 +69,14 @@ export const memoryStore: Store = {
   async addOrder(order) {
     db.orders.push(order);
   },
+  async updateOrder(order) {
+    const i = db.orders.findIndex((o) => o.id === order.id);
+    if (i < 0) throw new Error("Order not found");
+    db.orders[i] = order;
+  },
+  async deleteOrder(id) {
+    db.orders = db.orders.filter((o) => o.id !== id);
+  },
   async listOrders(limit) {
     return structuredClone(db.orders).reverse().slice(0, limit);
   },

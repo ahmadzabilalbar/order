@@ -1,7 +1,17 @@
+import Link from "next/link";
 import { formatDay, formatLine, formatPrice, formatTime } from "@/lib/format";
 import type { Order } from "@/lib/types";
 
-export function OrderList({ orders, title = "All orders" }: { orders: Order[]; title?: string }) {
+export function OrderList({
+  orders,
+  title = "All orders",
+  editable,
+}: {
+  orders: Order[];
+  title?: string;
+  /** Ids of orders that can still be edited; shows an Edit link on each. */
+  editable?: Set<string>;
+}) {
   const total = orders.reduce((s, o) => s + o.total, 0);
   return (
     <section className="card overflow-hidden">
@@ -27,7 +37,10 @@ export function OrderList({ orders, title = "All orders" }: { orders: Order[]; t
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{o.name}</p>
-                  <p className="text-xs text-zinc-500">{o.createdAt ? formatTime(o.createdAt) : ""}</p>
+                  <p className="text-xs text-zinc-500">
+                    {o.createdAt ? formatTime(o.createdAt) : ""}
+                    {o.updatedAt && <span title={`Edited ${formatTime(o.updatedAt)}`}> · edited</span>}
+                  </p>
                 </div>
               </div>
               <div className="min-w-0 flex-1 text-sm text-zinc-600 dark:text-zinc-300">
@@ -47,6 +60,15 @@ export function OrderList({ orders, title = "All orders" }: { orders: Order[]; t
               <div className="flex items-center gap-3 text-sm sm:justify-end">
                 <span className="font-mono text-xs text-zinc-400">#{o.id}</span>
                 <span className="font-semibold tabular-nums">{formatPrice(o.total)}</span>
+                {editable?.has(o.id) && (
+                  <Link
+                    href={`/?edit=${o.id}`}
+                    aria-label={`Edit order ${o.id}`}
+                    className="btn-ghost ml-auto border border-zinc-200 px-2.5 py-1 text-xs sm:ml-1 dark:border-zinc-700"
+                  >
+                    Edit
+                  </Link>
+                )}
               </div>
             </li>
           ))}

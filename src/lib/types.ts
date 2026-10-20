@@ -42,6 +42,10 @@ export type Order = {
   seller: string;
   /** Seller's delivery date at the time of ordering (YYYY-MM-DD or empty). */
   deliveryDate: string;
+  /** Seller id (empty on orders made before this was recorded). */
+  sellerId: string;
+  /** ISO time of the last edit; empty if never edited. */
+  updatedAt: string;
 };
 
 export type ActionResult<T = undefined> =
@@ -61,5 +65,7 @@ export interface Store {
   addName(name: string): Promise<void>;
   deleteName(name: string): Promise<void>;
   addOrder(order: Order): Promise<void>;
+  updateOrder(order: Order): Promise<void>;
+  deleteOrder(id: string): Promise<void>;
   listOrders(limit: number): Promise<Order[]>;
 }

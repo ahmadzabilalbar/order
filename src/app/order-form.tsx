@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
-import { formatDay, formatPrice, sellerStatus } from "@/lib/format";
+import { formatDay, formatPrice, orderSeller, sameName, sellerStatus } from "@/lib/format";
 import type { Item, Order, Seller } from "@/lib/types";
 import { Spinner } from "@/components/spinner";
-import { placeOrder } from "./actions";
+import { cancelOrder, placeOrder, updateOrder } from "./actions";
 
 const OTHER = "__other__";
 const NAME_KEY = "order:name";
@@ -24,6 +26,7 @@ export function OrderForm({
   sellers,
   sellersEnabled,
   today,
+  editing,
 }: {
   items: Item[];
   names: string[];
@@ -33,22 +36,35 @@ export function OrderForm({
   sellersEnabled: boolean;
   /** Server's date (YYYY-MM-DD) used for ordering windows. */
   today: string;
+  /** An existing order being edited (from ?edit=<id>). The form is keyed by its id. */
+  editing?: Order;
 }) {
+  const router = useRouter();
+  const editingSeller = editing && sellersEnabled ? orderSeller(editing, sellers) : undefined;
+  const canEdit = !editing || !sellersEnabled || (!!editingSeller && sellerStatus(editingSeller, today) === "open");
+  // Editing needs the buyer to confirm the name the order was placed under.
+  const [confirmedName, setConfirmedName] = useState<string | null>(null);
   // The last name used on this device is the default until the user picks one.
   const saved = useSyncExternalStore(noopSubscribe, readSavedName, () => null);
   const savedIsListed = saved !== null && names.includes(saved);
-  const [picked, setSelected] = useState<string | null>(null);
-  const [typed, setCustomName] = useState<string | null>(null);
+  const [picked, setSelected] = useState<string | null>(() =>
+    editing ? (names.includes(editing.name) ? editing.name : OTHER) : null,
+  );
+  const [typed, setCustomName] = useState<string | null>(() =>
+    editing && !names.includes(editing.name) ? editing.name : null,
+  );
   const selected = picked ?? (saved ? (savedIsListed ? saved : OTHER) : "");
   const customName = typed ?? (saved && !savedIsListed ? saved : "");
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [note, setNote] = useState("");
+  const [cart, setCart] = useState<Record<string, number>>(() =>
+    Object.fromEntries((editing?.lines ?? []).map((l) => [l.itemId, l.qty])),
+  );
+  const [note, setNote] = useState(editing?.note ?? "");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [error, setError] = useState("");
   const [placed, setPlaced] = useState<Order | null>(null);
   const [pending, startTransition] = useTransition();
-  const [pickedSeller, setPickedSeller] = useState("");
+  const [pickedSeller, setPickedSeller] = useState(editingSeller?.id ?? "");
   // Only sellers inside their ordering window can be picked; fall back to the
   // first open one if the chosen seller closed or was switched off.
   const openSellers = sellers.filter((s) => sellerStatus(s, today) === "open");
@@ -64,7 +80,7 @@ export function OrderForm({
     setError("");
   };
 
-  const name = names.length === 0 || selected === OTHER ? customName.trim() : selected;
+  const name = editing ? editing.name : names.length === 0 || selected === OTHER ? customName.trim() : selected;
 
   const categories = useMemo(
     () => ["All", ...new Set(menu.map((i) => i.category || "Other"))],
@@ -78,6 +94,8 @@ export function OrderForm({
   );
 
   const lines = menu.filter((i) => cart[i.id] > 0).map((i) => ({ ...i, qty: cart[i.id] }));
+  // Items in the order being edited that are no longer on the menu.
+  const dropped = editing?.lines.filter((l) => !menu.some((i) => i.id === l.itemId)) ?? [];
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
 
@@ -93,7 +111,9 @@ export function OrderForm({
     if (!name) return setError("Please choose your name first.");
     if (!count) return setError("Add at least one item.");
     startTransition(async () => {
-      const res = await placeOrder({ name, note, cart, sellerId: seller?.id ?? "" });
+      const res = editing
+        ? await updateOrder(editing.id, { confirmName: confirmedName ?? "", note, cart })
+        : await placeOrder({ name, note, cart, sellerId: seller?.id ?? "" });
       if (!res.ok) return setError(res.error);
       try {
         localStorage.setItem(NAME_KEY, name);
@@ -105,13 +125,25 @@ export function OrderForm({
     });
   }
 
+  function cancel() {
+    if (!editing || !confirm(`Cancel order #${editing.id}? This can't be undone.`)) return;
+    setError("");
+    startTransition(async () => {
+      const res = await cancelOrder(editing.id, confirmedName ?? "");
+      if (!res.ok) return setError(res.error);
+      router.replace("/");
+    });
+  }
+
+  const leaveEditing = () => router.replace("/");
+
   // Page heading: the chosen seller's name (a dropdown when there is a choice) and its
   // order-by / delivery dates; falls back to a generic heading without sellers.
   const heading =
     sellersEnabled && seller ? (
       <PageHeading
         title={
-          sellers.length > 1 && !placed ? (
+          sellers.length > 1 && !placed && !editing ? (
             <SellerSelect sellers={sellers} today={today} value={seller.id} onChange={chooseSeller} />
           ) : (
             (placed?.seller || seller.name)
@@ -145,7 +177,34 @@ export function OrderForm({
     return (
       <>
         {heading}
-        <Confirmation order={placed} onReset={() => setPlaced(null)} />
+        <Confirmation
+          order={placed}
+          edited={!!editing}
+          onReset={editing ? leaveEditing : () => setPlaced(null)}
+        />
+      </>
+    );
+  }
+
+  if (editing && canEdit && confirmedName === null) {
+    return (
+      <>
+        {heading}
+        <NameCheck order={editing} onConfirmed={setConfirmedName} />
+      </>
+    );
+  }
+
+  if (editing && !canEdit) {
+    return (
+      <>
+        {heading}
+        <div className="card grid place-items-center px-6 py-16 text-center">
+          <p className="text-4xl">🔒</p>
+          <p className="mt-3 font-medium">Order #{editing.id} can&apos;t be changed anymore</p>
+          <p className="mt-1 text-sm text-zinc-500">Orders for this seller are closed.</p>
+          <Link href="/" className="btn-primary mt-6">Back to ordering</Link>
+        </div>
       </>
     );
   }
@@ -192,12 +251,41 @@ export function OrderForm({
   return (
     <>
       {heading}
+      {editing && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-brand-500/40 bg-brand-50 px-4 py-3 text-sm dark:bg-brand-500/10">
+          <span className="grid size-8 place-items-center rounded-full bg-brand-600 text-white">
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </span>
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">Editing order #{editing.id}</span>
+            <span className="text-zinc-600 dark:text-zinc-300"> · placed by {editing.name}</span>
+            {dropped.length > 0 && (
+              <span className="block text-xs text-amber-700 dark:text-amber-400">
+                No longer available, removed: {dropped.map((l) => l.name).join(", ")}
+              </span>
+            )}
+          </p>
+          <button type="button" onClick={cancel} disabled={pending} className="btn-ghost px-3 py-1.5 text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400">
+            Cancel order
+          </button>
+          <button type="button" onClick={leaveEditing} className="btn-ghost border border-zinc-300 px-3 py-1.5 dark:border-zinc-700">
+            Stop editing
+          </button>
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="space-y-6">
           {/* Name */}
           <section className="card p-4 sm:p-5">
             <StepTitle n={1} title="Who's ordering?" />
-            {names.length > 0 ? (
+            {editing ? (
+              <p className="flex items-center gap-2 text-sm">
+                <span className="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-1.5 font-medium text-white">{editing.name}</span>
+                <span className="text-zinc-500">Name confirmed. It can&apos;t be changed while editing.</span>
+              </p>
+            ) : names.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {[...names, OTHER].map((n) => (
                   <button
@@ -216,7 +304,7 @@ export function OrderForm({
                 ))}
               </div>
             ) : null}
-            {(names.length === 0 || selected === OTHER) && (
+            {!editing && (names.length === 0 || selected === OTHER) && (
               <input
                 className="input mt-3"
                 placeholder="Type your name"
@@ -327,7 +415,7 @@ export function OrderForm({
           {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
           <button type="button" onClick={submit} disabled={pending} className="btn-primary mt-4 w-full py-3">
             {pending ? <Spinner /> : null}
-            {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}
+            {pending ? (editing ? "Saving…" : "Placing order…") : `${editing ? "Save changes" : "Place order"} · ${formatPrice(total)}`}
           </button>
         </aside>
 
@@ -338,6 +426,7 @@ export function OrderForm({
           pending={pending}
           error={error}
           onSubmit={submit}
+          submitLabel={editing ? "Save changes" : "Place order"}
           note={note}
           setNote={setNote}
           lines={lines}
@@ -401,6 +490,7 @@ function MobileBar(props: {
   pending: boolean;
   error: string;
   onSubmit: () => void;
+  submitLabel: string;
   note: string;
   setNote: (v: string) => void;
   lines: Line[];
@@ -438,7 +528,7 @@ function MobileBar(props: {
           </button>
           <button type="button" onClick={props.onSubmit} disabled={props.pending} className="btn-primary px-5 py-3">
             {props.pending ? <Spinner /> : null}
-            {props.pending ? "Placing…" : "Place order"}
+            {props.pending ? "Please wait…" : props.submitLabel}
           </button>
         </div>
       </div>
@@ -446,7 +536,44 @@ function MobileBar(props: {
   );
 }
 
-function Confirmation({ order, onReset }: { order: Order; onReset: () => void }) {
+function NameCheck({ order, onConfirmed }: { order: Order; onConfirmed: (name: string) => void }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  return (
+    <form
+      className="card mx-auto max-w-md p-6 sm:p-8"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (sameName(value, order.name)) onConfirmed(value);
+        else setError("That name doesn't match this order.");
+      }}
+    >
+      <h2 className="text-xl font-semibold tracking-tight">Edit order #{order.id}</h2>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        To make changes, confirm the name this order was placed under.
+      </p>
+      <label className="label mt-5" htmlFor="confirm-name">Your name</label>
+      <input
+        id="confirm-name"
+        className="input"
+        value={value}
+        autoFocus
+        autoComplete="off"
+        onChange={(e) => {
+          setValue(e.target.value);
+          setError("");
+        }}
+      />
+      {error && <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+      <div className="mt-5 flex gap-2">
+        <button className="btn-primary flex-1" disabled={!value.trim()}>Continue</button>
+        <Link href="/" className="btn-ghost">Cancel</Link>
+      </div>
+    </form>
+  );
+}
+
+function Confirmation({ order, edited, onReset }: { order: Order; edited: boolean; onReset: () => void }) {
   return (
     <div className="card mx-auto max-w-md overflow-hidden">
       <div className="bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-8 text-center text-white">
@@ -455,9 +582,13 @@ function Confirmation({ order, onReset }: { order: Order; onReset: () => void })
             <path d="m5 12 5 5L20 7" />
           </svg>
         </div>
-        <h2 className="mt-4 text-2xl font-semibold tracking-tight">Order placed!</h2>
+        <h2 className="mt-4 text-2xl font-semibold tracking-tight">{edited ? "Order updated!" : "Order placed!"}</h2>
         <p className="mt-1 text-white/80">
-          Thanks, {order.name}.{order.seller && <> Your order from {order.seller} is in.</>}
+          {edited ? (
+            <>Changes to {order.name}&apos;s order are saved.</>
+          ) : (
+            <>Thanks, {order.name}.{order.seller && <> Your order from {order.seller} is in.</>}</>
+          )}
         </p>
       </div>
       <div className="p-6">
@@ -488,7 +619,7 @@ function Confirmation({ order, onReset }: { order: Order; onReset: () => void })
           <span className="tabular-nums">{formatPrice(order.total)}</span>
         </div>
         <button type="button" onClick={onReset} className="btn-primary mt-6 w-full py-3">
-          Place another order
+          {edited ? "Back to ordering" : "Place another order"}
         </button>
       </div>
     </div>

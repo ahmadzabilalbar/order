@@ -1,4 +1,4 @@
-import type { OrderLine, Seller } from "./types";
+import type { Order, OrderLine, Seller } from "./types";
 
 const currency = process.env.NEXT_PUBLIC_CURRENCY || "MYR";
 const locale = process.env.NEXT_PUBLIC_LOCALE || "en-MY";
@@ -36,6 +36,23 @@ export function sellerStatus(s: Seller, today: string): SellerStatus {
   if (s.startDate && today < s.startDate) return "upcoming";
   if (s.endDate && today > s.endDate) return "ended";
   return "open";
+}
+
+/** Compares names ignoring case and extra spaces. */
+export const sameName = (a: string, b: string) => {
+  const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  return norm(a) !== "" && norm(a) === norm(b);
+};
+
+/** The seller an order belongs to (by id, or by name for older orders). */
+export const orderSeller = (o: Order, sellers: Seller[]) =>
+  sellers.find((s) => o.sellerId && s.id === o.sellerId) ?? sellers.find((s) => s.name === o.seller);
+
+/** Orders can be changed while their seller is still taking orders. */
+export function canEditOrder(o: Order, sellers: Seller[], today: string) {
+  if (!sellers.length) return true;
+  const s = orderSeller(o, sellers);
+  return !!s && sellerStatus(s, today) === "open";
 }
 
 /** Short human description of a seller's ordering window, or "" when it has none. */

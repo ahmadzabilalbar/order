@@ -8,7 +8,7 @@ import type { Item, Order, OrderLine, Seller, Store } from "./types";
  *   Items:   id | name | price | category | available | seller | unit
  *   Sellers: id | name | active | start_date | end_date | delivery_date
  *   Names:   name
- *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date
+ *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date | seller_id | updated_at
  * Missing tabs and header rows are created automatically on first use, and
  * headers from an older version gain the new columns.
  */
@@ -17,7 +17,7 @@ const TABS = {
   Items: ["id", "name", "price", "category", "available", "seller", "unit"],
   Sellers: ["id", "name", "active", "start_date", "end_date", "delivery_date"],
   Names: ["name"],
-  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date"],
+  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date", "seller_id", "updated_at"],
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -211,7 +211,29 @@ function toOrder(c: Cell[]): Order {
     note: str(c[5]),
     seller: str(c[7]),
     deliveryDate: day(c[8]),
+    sellerId: str(c[9]),
+    updatedAt: str(c[10]),
   };
+}
+
+const orderCells = (o: Order): Cell[] => [
+  o.id,
+  o.createdAt,
+  o.name,
+  o.lines.map(formatLine).join(", "),
+  o.total,
+  o.note,
+  JSON.stringify(o.lines),
+  o.seller,
+  o.deliveryDate,
+  o.sellerId,
+  o.updatedAt,
+];
+
+async function findOrderRow(id: string) {
+  const row = (await readRows("Orders")).find((r) => str(r.cells[0]) === id);
+  if (!row) throw new Error("Order not found");
+  return row;
 }
 
 async function findRow(tab: Tab, id: string) {
@@ -264,18 +286,13 @@ export const sheetsStore: Store = {
   },
 
   async addOrder(o) {
-    const summary = o.lines.map(formatLine).join(", ");
-    await appendRow("Orders", [
-      o.id,
-      o.createdAt,
-      o.name,
-      summary,
-      o.total,
-      o.note,
-      JSON.stringify(o.lines),
-      o.seller,
-      o.deliveryDate,
-    ]);
+    await appendRow("Orders", orderCells(o));
+  },
+  async updateOrder(o) {
+    await writeRow("Orders", (await findOrderRow(o.id)).row, orderCells(o));
+  },
+  async deleteOrder(id) {
+    await deleteRow("Orders", (await findOrderRow(id)).row);
   },
   async listOrders(limit) {
     return (await readRows("Orders")).map((r) => toOrder(r.cells)).reverse().slice(0, limit);
