@@ -26,7 +26,7 @@ export async function logout() {
 }
 
 /** Wraps an admin mutation with an auth check, error handling and cache refresh. */
-async function guarded(tag: string, fn: () => Promise<void>): Promise<ActionResult> {
+async function guarded(tags: string | string[], fn: () => Promise<void>): Promise<ActionResult> {
   if (!(await isAdmin())) return { ok: false, error: "Session expired. Please sign in again." };
   try {
     await fn();
@@ -34,7 +34,7 @@ async function guarded(tag: string, fn: () => Promise<void>): Promise<ActionResu
     console.error(err);
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
   }
-  updateTag(tag);
+  for (const tag of [tags].flat()) updateTag(tag);
   refresh();
   return { ok: true };
 }
@@ -116,12 +116,11 @@ export async function setSellerActive(id: string, active: boolean) {
   return guarded("sellers", () => store.updateSeller(id, { active }));
 }
 
+/** Deletes the seller and its own items. Past orders keep the seller's name. */
 export async function deleteSeller(id: string) {
-  return guarded("sellers", async () => {
-    const count = (await store.listItems()).filter((i) => i.seller === id).length;
-    if (count) {
-      throw new Error(`Move or delete its ${count} item${count > 1 ? "s" : ""} first, or set it inactive.`);
-    }
+  return guarded(["sellers", "items"], async () => {
+    const own = (await store.listItems()).filter((i) => i.seller === id);
+    for (const item of own) await store.deleteItem(item.id);
     await store.deleteSeller(id);
   });
 }

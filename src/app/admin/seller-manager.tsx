@@ -132,7 +132,15 @@ function SellerRow({ seller, today, itemCount }: { seller: Seller; today: string
       <button
         type="button"
         disabled={busy}
-        onClick={() => confirm(`Delete seller "${seller.name}"?`) && run(() => deleteSeller(seller.id))}
+        onClick={() =>
+          confirm(
+            itemCount
+              ? `Delete seller "${seller.name}" and its ${itemCount} item${itemCount === 1 ? "" : "s"}?
+
+Past orders are kept. To pause the seller instead, switch it off.`
+              : `Delete seller "${seller.name}"?`,
+          ) && run(() => deleteSeller(seller.id))
+        }
         className="btn-ghost px-2 py-1.5 hover:text-red-600"
         aria-label={`Delete ${seller.name}`}
       >
