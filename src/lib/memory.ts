@@ -1,22 +1,27 @@
 import "server-only";
-import type { Item, Order, Store } from "./types";
+import type { Item, Order, Seller, Store } from "./types";
 
 /**
  * In-memory demo store used when Google Sheets credentials are not set.
  * Data resets whenever the server restarts — local development only.
  */
 
-type Db = { items: Item[]; names: string[]; orders: Order[] };
+type Db = { items: Item[]; sellers: Seller[]; names: string[]; orders: Order[] };
 
 const g = globalThis as unknown as { __orderDb?: Db };
 const db: Db = (g.__orderDb ??= {
   items: [
-    { id: "latte", name: "Caffè Latte", price: 9.5, category: "Drinks", available: true },
-    { id: "mocha", name: "Mocha", price: 10.5, category: "Drinks", available: true },
-    { id: "teh-tarik", name: "Teh Tarik", price: 4.5, category: "Drinks", available: true },
-    { id: "nasi-lemak", name: "Nasi Lemak", price: 8, category: "Food", available: true },
-    { id: "croissant", name: "Butter Croissant", price: 6.9, category: "Food", available: true },
-    { id: "brownie", name: "Fudge Brownie", price: 5.5, category: "Dessert", available: false },
+    { id: "latte", name: "Caffè Latte", price: 9.5, category: "Drinks", available: true, seller: "kopi" },
+    { id: "mocha", name: "Mocha", price: 10.5, category: "Drinks", available: true, seller: "kopi" },
+    { id: "teh-tarik", name: "Teh Tarik", price: 4.5, category: "Drinks", available: true, seller: "kopi" },
+    { id: "nasi-lemak", name: "Nasi Lemak", price: 8, category: "Food", available: true, seller: "dapur" },
+    { id: "croissant", name: "Butter Croissant", price: 6.9, category: "Food", available: true, seller: "dapur" },
+    { id: "brownie", name: "Fudge Brownie", price: 5.5, category: "Dessert", available: false, seller: "" },
+  ],
+  sellers: [
+    { id: "kopi", name: "Kopi Sini", active: true },
+    { id: "dapur", name: "Dapur Sini", active: true },
+    { id: "roti", name: "Roti Corner", active: false },
   ],
   names: ["Aina", "Daniel", "Farah", "Hafiz", "Mei Ling"],
   orders: [],
@@ -36,6 +41,20 @@ export const memoryStore: Store = {
   },
   async deleteItem(id) {
     db.items = db.items.filter((i) => i.id !== id);
+  },
+  async listSellers() {
+    return structuredClone(db.sellers);
+  },
+  async addSeller(seller) {
+    db.sellers.push(seller);
+  },
+  async updateSeller(id, patch) {
+    const seller = db.sellers.find((s) => s.id === id);
+    if (!seller) throw new Error("Seller not found");
+    Object.assign(seller, patch);
+  },
+  async deleteSeller(id) {
+    db.sellers = db.sellers.filter((s) => s.id !== id);
   },
   async listNames() {
     return [...db.names];

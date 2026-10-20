@@ -9,6 +9,7 @@ import { logout } from "./actions";
 import { LoginForm } from "./login-form";
 import { ItemManager } from "./item-manager";
 import { NameManager } from "./name-manager";
+import { SellerManager } from "./seller-manager";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -23,8 +24,9 @@ export default function AdminPage() {
 async function AdminGate() {
   if (!(await isAdmin())) return <LoginForm />;
 
-  const [items, names, orders] = await Promise.all([
+  const [items, sellers, names, orders] = await Promise.all([
     store.listItems(),
+    store.listSellers(),
     store.listNames(),
     store.listOrders(Infinity),
   ]);
@@ -35,7 +37,7 @@ async function AdminGate() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
-          <p className="mt-1 text-zinc-500 dark:text-zinc-400">Manage the menu, names and view orders.</p>
+          <p className="mt-1 text-zinc-500 dark:text-zinc-400">Manage sellers, the menu and names, and view orders.</p>
         </div>
         <form action={logout}>
           <button className="btn-ghost border border-zinc-200 dark:border-zinc-800">Sign out</button>
@@ -45,15 +47,18 @@ async function AdminGate() {
       {isDemo && <DemoBanner />}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Items" value={items.length} />
-        <Stat label="Available" value={items.filter((i) => i.available).length} />
+        <Stat label="Active sellers" value={`${sellers.filter((s) => s.active).length} / ${sellers.length}`} />
+        <Stat label="Items available" value={`${items.filter((i) => i.available).length} / ${items.length}`} />
         <Stat label="Orders" value={orders.length} />
         <Stat label="Revenue" value={formatPrice(revenue)} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
-        <ItemManager items={items} />
-        <NameManager names={names} />
+        <ItemManager items={items} sellers={sellers} />
+        <div className="space-y-6">
+          <SellerManager sellers={sellers} items={items} />
+          <NameManager names={names} />
+        </div>
       </div>
 
       <OrderList orders={orders} />

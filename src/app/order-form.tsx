@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { formatPrice } from "@/lib/format";
-import type { Item, Order } from "@/lib/types";
+import type { Item, Order, Seller } from "@/lib/types";
 import { Spinner } from "@/components/spinner";
 import { placeOrder } from "./actions";
 
@@ -18,7 +18,19 @@ function readSavedName() {
   }
 }
 
-export function OrderForm({ items, names }: { items: Item[]; names: string[] }) {
+export function OrderForm({
+  items,
+  names,
+  sellers,
+  sellersEnabled,
+}: {
+  items: Item[];
+  names: string[];
+  /** Active sellers only. */
+  sellers: Seller[];
+  /** True when the sheet has any sellers at all (active or not). */
+  sellersEnabled: boolean;
+}) {
   // The last name used on this device is the default until the user picks one.
   const saved = useSyncExternalStore(noopSubscribe, readSavedName, () => null);
   const savedIsListed = saved !== null && names.includes(saved);
@@ -33,21 +45,35 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
   const [error, setError] = useState("");
   const [placed, setPlaced] = useState<Order | null>(null);
   const [pending, startTransition] = useTransition();
+  const [pickedSeller, setPickedSeller] = useState("");
+  // Fall back to the first open seller if the chosen one was switched off.
+  const seller = sellers.find((s) => s.id === pickedSeller) ?? sellers[0];
+
+  // Items without a seller are offered by every seller.
+  const menu = sellersEnabled ? items.filter((i) => !i.seller || i.seller === seller?.id) : items;
+  const step = sellersEnabled ? 1 : 0;
+
+  const chooseSeller = (id: string) => {
+    setPickedSeller(id);
+    setCart({});
+    setCategory("All");
+    setError("");
+  };
 
   const name = names.length === 0 || selected === OTHER ? customName.trim() : selected;
 
   const categories = useMemo(
-    () => ["All", ...new Set(items.map((i) => i.category || "Other"))],
-    [items],
+    () => ["All", ...new Set(menu.map((i) => i.category || "Other"))],
+    [menu],
   );
 
-  const visible = items.filter(
+  const visible = menu.filter(
     (i) =>
       (category === "All" || (i.category || "Other") === category) &&
       i.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
-  const lines = items.filter((i) => cart[i.id] > 0).map((i) => ({ ...i, qty: cart[i.id] }));
+  const lines = menu.filter((i) => cart[i.id] > 0).map((i) => ({ ...i, qty: cart[i.id] }));
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
 
@@ -63,7 +89,7 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
     if (!name) return setError("Please choose your name first.");
     if (!count) return setError("Add at least one item.");
     startTransition(async () => {
-      const res = await placeOrder({ name, note, cart });
+      const res = await placeOrder({ name, note, cart, sellerId: seller?.id ?? "" });
       if (!res.ok) return setError(res.error);
       try {
         localStorage.setItem(NAME_KEY, name);
@@ -76,6 +102,16 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
   }
 
   if (placed) return <Confirmation order={placed} onReset={() => setPlaced(null)} />;
+
+  if (sellersEnabled && !sellers.length) {
+    return (
+      <div className="card grid place-items-center px-6 py-16 text-center">
+        <p className="text-4xl">🌙</p>
+        <p className="mt-3 font-medium">No sellers are open right now</p>
+        <p className="mt-1 text-sm text-zinc-500">Please check back later.</p>
+      </div>
+    );
+  }
 
   if (!items.length) {
     return (
@@ -90,9 +126,16 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
       <div className="space-y-6">
-        {/* Step 1: name */}
+        {sellersEnabled && seller && (
+          <section className="card p-4 sm:p-5">
+            <StepTitle n={1} title="Order from" />
+            <SellerSelect sellers={sellers} value={seller.id} onChange={chooseSeller} />
+          </section>
+        )}
+
+        {/* Name */}
         <section className="card p-4 sm:p-5">
-          <StepTitle n={1} title="Who's ordering?" />
+          <StepTitle n={step + 1} title="Who's ordering?" />
           {names.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {[...names, OTHER].map((n) => (
@@ -127,7 +170,7 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
         {/* Step 2: items */}
         <section>
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <StepTitle n={2} title="Pick your items" className="mb-0" />
+            <StepTitle n={step + 2} title="Pick your items" className="mb-0" />
             <div className="relative sm:w-56">
               <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <circle cx="11" cy="11" r="7" />
@@ -191,7 +234,9 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
               );
             })}
             {!visible.length && (
-              <p className="col-span-full py-10 text-center text-sm text-zinc-500">No items match your search.</p>
+              <p className="col-span-full py-10 text-center text-sm text-zinc-500">
+                {menu.length ? "No items match your search." : `${seller?.name ?? "This seller"} has no items yet.`}
+              </p>
             )}
           </div>
         </section>
@@ -199,7 +244,12 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
 
       {/* Step 3: summary (sidebar on desktop) */}
       <aside className="card hidden p-5 lg:sticky lg:top-20 lg:block">
-        <StepTitle n={3} title="Your order" />
+        <StepTitle n={step + 3} title="Your order" />
+        {seller && sellersEnabled && (
+          <p className="-mt-1 mb-2 text-sm text-zinc-500 dark:text-zinc-400">
+            From <span className="font-medium text-zinc-900 dark:text-zinc-100">{seller.name}</span>
+          </p>
+        )}
         <Summary lines={lines} total={total} name={name} onQty={setQty} />
         <textarea
           className="input mt-4 min-h-20 resize-none"
@@ -336,7 +386,9 @@ function Confirmation({ order, onReset }: { order: Order; onReset: () => void })
           </svg>
         </div>
         <h2 className="mt-4 text-2xl font-semibold tracking-tight">Order placed!</h2>
-        <p className="mt-1 text-white/80">Thanks, {order.name}.</p>
+        <p className="mt-1 text-white/80">
+          Thanks, {order.name}.{order.seller && <> Your order from {order.seller} is in.</>}
+        </p>
       </div>
       <div className="p-6">
         <div className="mb-4 flex justify-between text-sm">
@@ -377,6 +429,36 @@ function Stepper({ qty, onChange, label, small }: { qty: number; onChange: (q: n
       <button type="button" aria-label={`Add one ${label}`} onClick={() => onChange(qty + 1)} className={`${size} grid place-items-center rounded-lg text-lg leading-none transition hover:bg-white dark:hover:bg-zinc-700`}>
         +
       </button>
+    </div>
+  );
+}
+
+function SellerSelect({
+  sellers,
+  value,
+  onChange,
+}: {
+  sellers: Seller[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <select
+        aria-label="Seller"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input cursor-pointer appearance-none py-3 pr-10 text-base font-medium"
+      >
+        {sellers.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m6 9 6 6 6-6" />
+      </svg>
     </div>
   );
 }

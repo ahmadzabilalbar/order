@@ -14,6 +14,14 @@ export async function getMenu() {
   return (await store.listItems()).filter((i) => i.available);
 }
 
+/** All sellers; the order page only offers the active ones. */
+export async function getSellers() {
+  "use cache";
+  cacheTag("sellers");
+  cacheLife("minutes");
+  return store.listSellers();
+}
+
 export async function getNames() {
   "use cache";
   cacheTag("names");

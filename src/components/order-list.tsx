@@ -31,6 +31,11 @@ export function OrderList({ orders, title = "All orders" }: { orders: Order[]; t
                 </div>
               </div>
               <div className="min-w-0 flex-1 text-sm text-zinc-600 dark:text-zinc-300">
+                {o.seller && (
+                  <span className="mr-2 inline-block rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                    {o.seller}
+                  </span>
+                )}
                 {o.lines.map((l) => `${l.qty}× ${l.name}`).join(", ")}
                 {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
               </div>

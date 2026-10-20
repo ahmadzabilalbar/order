@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { getMenu, getNames, getOrders, isDemo } from "@/lib/store";
+import { getMenu, getNames, getOrders, getSellers, isDemo } from "@/lib/store";
 import { DemoBanner } from "@/components/demo-banner";
 import { OrderList } from "@/components/order-list";
 import { OrderForm } from "./order-form";
@@ -30,11 +30,16 @@ export default function Home() {
 async function Menu() {
   // Read the sheet at request time, not during the build.
   await connection();
-  const [items, names] = await Promise.all([getMenu(), getNames()]);
+  const [items, names, sellers] = await Promise.all([getMenu(), getNames(), getSellers()]);
   return (
     <>
       {isDemo && <DemoBanner />}
-      <OrderForm items={items} names={names} />
+      <OrderForm
+        items={items}
+        names={names}
+        sellers={sellers.filter((s) => s.active)}
+        sellersEnabled={sellers.length > 0}
+      />
     </>
   );
 }

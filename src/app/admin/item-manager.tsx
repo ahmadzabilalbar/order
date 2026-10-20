@@ -2,13 +2,17 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Spinner } from "@/components/spinner";
+import { Switch } from "@/components/switch";
 import { keepValues } from "@/lib/forms";
 import { formatPrice } from "@/lib/format";
-import type { Item } from "@/lib/types";
+import type { Item, Seller } from "@/lib/types";
 import { addItem, deleteItem, setAvailable, updateItem } from "./actions";
 
-export function ItemManager({ items }: { items: Item[] }) {
+const ALL = "__all__";
+
+export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller[] }) {
   const [state, action, pending] = useActionState(addItem, null);
+  const [filter, setFilter] = useState(ALL);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -16,14 +20,33 @@ export function ItemManager({ items }: { items: Item[] }) {
   }, [state]);
 
   const categories = [...new Set(items.map((i) => i.category).filter(Boolean))];
+  const sellerName = (id: string) => sellers.find((s) => s.id === id)?.name;
+  const shown = filter === ALL ? items : items.filter((i) => i.seller === filter);
+  const hasSellers = sellers.length > 0;
 
   return (
     <section className="card overflow-hidden">
-      <div className="border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
         <h2 className="font-semibold">Menu items</h2>
+        {hasSellers && (
+          <SellerSelect
+            sellers={sellers}
+            value={filter}
+            onChange={setFilter}
+            label="Filter by seller"
+            options={[{ value: ALL, label: "All sellers" }, { value: "", label: "Shared (every seller)" }]}
+            className="w-52 py-2"
+          />
+        )}
       </div>
 
-      <form ref={formRef} onSubmit={keepValues(action)} className="grid gap-3 border-b border-zinc-100 bg-zinc-50/60 p-5 sm:grid-cols-[1fr_120px_140px_auto] sm:items-end dark:border-zinc-800 dark:bg-zinc-950/30">
+      <form
+        ref={formRef}
+        onSubmit={keepValues(action)}
+        className={`grid gap-3 border-b border-zinc-100 bg-zinc-50/60 p-5 sm:items-end dark:border-zinc-800 dark:bg-zinc-950/30 ${
+          hasSellers ? "sm:grid-cols-[1fr_110px_130px_150px_auto]" : "sm:grid-cols-[1fr_120px_140px_auto]"
+        }`}
+      >
         <div>
           <label className="label" htmlFor="new-name">Item name</label>
           <input id="new-name" name="name" required maxLength={80} placeholder="e.g. Iced Latte" className="input" />
@@ -39,6 +62,20 @@ export function ItemManager({ items }: { items: Item[] }) {
             {categories.map((c) => <option key={c} value={c} />)}
           </datalist>
         </div>
+        {hasSellers && (
+          <div>
+            <label className="label" htmlFor="new-seller">Seller</label>
+            <SellerSelect
+              id="new-seller"
+              name="seller"
+              sellers={sellers}
+              // New items go to the seller being viewed.
+              defaultValue={filter === ALL ? sellers[0].id : filter}
+              key={filter}
+              options={[{ value: "", label: "Every seller" }]}
+            />
+          </div>
+        )}
         <button disabled={pending} className="btn-primary">
           {pending ? <Spinner /> : <span aria-hidden>+</span>}
           Add
@@ -46,18 +83,22 @@ export function ItemManager({ items }: { items: Item[] }) {
         {state && !state.ok && <p className="text-sm font-medium text-red-600 sm:col-span-full dark:text-red-400">{state.error}</p>}
       </form>
 
-      {items.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-zinc-500">No items yet. Add your first one above.</p>
+      {shown.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-zinc-500">
+          {items.length ? "No items for this seller yet." : "No items yet. Add your first one above."}
+        </p>
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {items.map((item) => <ItemRow key={item.id} item={item} />)}
+          {shown.map((item) => (
+            <ItemRow key={item.id} item={item} sellers={sellers} sellerName={hasSellers ? (sellerName(item.seller) ?? (item.seller ? "Unknown seller" : "Every seller")) : undefined} />
+          ))}
         </ul>
       )}
     </section>
   );
 }
 
-function ItemRow({ item }: { item: Item }) {
+function ItemRow({ item, sellers, sellerName }: { item: Item; sellers: Seller[]; sellerName?: string }) {
   const [editing, setEditing] = useState(false);
   const [state, action, saving] = useActionState(async (prev: unknown, formData: FormData) => {
     const res = await updateItem(item.id, prev, formData);
@@ -76,10 +117,16 @@ function ItemRow({ item }: { item: Item }) {
   if (editing) {
     return (
       <li className="p-4">
-        <form onSubmit={keepValues(action)} className="grid gap-2 sm:grid-cols-[1fr_110px_130px_auto] sm:items-center">
+        <form
+          onSubmit={keepValues(action)}
+          className={`grid gap-2 sm:items-center ${sellers.length ? "sm:grid-cols-[1fr_100px_120px_140px_auto]" : "sm:grid-cols-[1fr_110px_130px_auto]"}`}
+        >
           <input name="name" defaultValue={item.name} required maxLength={80} className="input" aria-label="Name" />
           <input name="price" defaultValue={item.price} required inputMode="decimal" className="input tabular-nums" aria-label="Price" />
           <input name="category" defaultValue={item.category} maxLength={40} className="input" aria-label="Category" placeholder="Category" />
+          {sellers.length > 0 && (
+            <SellerSelect name="seller" sellers={sellers} defaultValue={item.seller} label="Seller" options={[{ value: "", label: "Every seller" }]} />
+          )}
           <div className="flex gap-2">
             <button disabled={saving} className="btn-primary flex-1">{saving ? <Spinner /> : "Save"}</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-ghost">Cancel</button>
@@ -97,22 +144,18 @@ function ItemRow({ item }: { item: Item }) {
         <p className="text-xs text-zinc-500">
           <span className="tabular-nums">{formatPrice(item.price)}</span>
           {item.category && <> · {item.category}</>}
+          {sellerName && <> · {sellerName}</>}
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
 
-      <button
-        type="button"
-        role="switch"
-        aria-checked={item.available}
-        aria-label={`${item.name} available`}
-        title={item.available ? "Available — click to hide" : "Hidden — click to show"}
+      <Switch
+        checked={item.available}
         disabled={busy}
-        onClick={() => run(() => setAvailable(item.id, !item.available))}
-        className={`relative h-6 w-10 shrink-0 rounded-full transition ${item.available ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-700"}`}
-      >
-        <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${item.available ? "left-[18px]" : "left-0.5"}`} />
-      </button>
+        label={`${item.name} available`}
+        title={item.available ? "Available, click to hide" : "Hidden, click to show"}
+        onChange={(available) => run(() => setAvailable(item.id, available))}
+      />
       <button type="button" onClick={() => setEditing(true)} className="btn-ghost px-2.5 py-1.5" aria-label={`Edit ${item.name}`}>
         <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -130,5 +173,47 @@ function ItemRow({ item }: { item: Item }) {
         </svg>
       </button>
     </li>
+  );
+}
+
+function SellerSelect({
+  sellers,
+  options = [],
+  label,
+  className = "",
+  ...props
+}: {
+  sellers: Seller[];
+  options?: { value: string; label: string }[];
+  label?: string;
+  className?: string;
+  id?: string;
+  name?: string;
+  value?: string;
+  defaultValue?: string;
+  onChange?: (value: string) => void;
+}) {
+  const { onChange, ...rest } = props;
+  return (
+    <div className={`relative ${className.includes("w-") ? "" : "w-full"}`}>
+      <select
+        {...rest}
+        aria-label={label}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        className={`input cursor-pointer appearance-none pr-9 ${className}`}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+        {sellers.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}{s.active ? "" : " (inactive)"}
+          </option>
+        ))}
+      </select>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </div>
   );
 }

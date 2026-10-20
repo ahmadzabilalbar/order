@@ -4,6 +4,14 @@ export type Item = {
   price: number;
   category: string;
   available: boolean;
+  /** Seller id; empty means the item is offered by every seller. */
+  seller: string;
+};
+
+export type Seller = {
+  id: string;
+  name: string;
+  active: boolean;
 };
 
 export type OrderLine = {
@@ -20,6 +28,8 @@ export type Order = {
   lines: OrderLine[];
   total: number;
   note: string;
+  /** Seller name at the time of ordering (empty when sellers aren't used). */
+  seller: string;
 };
 
 export type ActionResult<T = undefined> =
@@ -31,6 +41,10 @@ export interface Store {
   addItem(item: Item): Promise<void>;
   updateItem(id: string, patch: Partial<Omit<Item, "id">>): Promise<void>;
   deleteItem(id: string): Promise<void>;
+  listSellers(): Promise<Seller[]>;
+  addSeller(seller: Seller): Promise<void>;
+  updateSeller(id: string, patch: Partial<Omit<Seller, "id">>): Promise<void>;
+  deleteSeller(id: string): Promise<void>;
   listNames(): Promise<string[]>;
   addName(name: string): Promise<void>;
   deleteName(name: string): Promise<void>;

@@ -1,19 +1,22 @@
 import "server-only";
 import { JWT } from "google-auth-library";
-import type { Item, Order, OrderLine, Store } from "./types";
+import type { Item, Order, OrderLine, Seller, Store } from "./types";
 
 /**
- * Google Sheets-backed store. One spreadsheet, three tabs:
- *   Items:  id | name | price | category | available
- *   Names:  name
- *   Orders: id | created_at | name | items | total | note | lines_json
- * Missing tabs and header rows are created automatically on first use.
+ * Google Sheets-backed store. One spreadsheet, four tabs:
+ *   Items:   id | name | price | category | available | seller
+ *   Sellers: id | name | active
+ *   Names:   name
+ *   Orders:  id | created_at | name | items | total | note | lines_json | seller
+ * Missing tabs and header rows are created automatically on first use, and
+ * headers from an older version gain the new columns.
  */
 
 const TABS = {
-  Items: ["id", "name", "price", "category", "available"],
+  Items: ["id", "name", "price", "category", "available", "seller"],
+  Sellers: ["id", "name", "active"],
   Names: ["name"],
-  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json"],
+  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller"],
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -68,7 +71,8 @@ function ensureSchema() {
     const ids: Record<string, number> = {};
     for (const s of meta.sheets) ids[s.properties.title] = s.properties.sheetId;
 
-    const missing = (Object.keys(TABS) as Tab[]).filter((t) => !(t in ids));
+    const tabs = Object.keys(TABS) as Tab[];
+    const missing = tabs.filter((t) => !(t in ids));
     if (missing.length) {
       const res = await api<{
         replies: { addSheet: { properties: { title: string; sheetId: number } } }[];
@@ -81,11 +85,23 @@ function ensureSchema() {
       for (const r of res.replies) {
         ids[r.addSheet.properties.title] = r.addSheet.properties.sheetId;
       }
+    }
+
+    // Write headers for new tabs, and extend headers that are a prefix of the
+    // current columns (sheets created by an older version). Custom headers are left alone.
+    const ranges = tabs.map((t) => `ranges=${t}!1:1`).join("&");
+    const current = await api<{ valueRanges: { values?: Cell[][] }[] }>(`/values:batchGet?${ranges}`);
+    const outdated = tabs.filter((t, i) => {
+      const have = (current.valueRanges[i]?.values?.[0] ?? []).map(String);
+      const want: readonly string[] = TABS[t];
+      return have.length < want.length && have.every((h, j) => h === want[j]);
+    });
+    if (outdated.length) {
       await api("/values:batchUpdate", {
         method: "POST",
         body: JSON.stringify({
           valueInputOption: "RAW",
-          data: missing.map((t) => ({ range: `${t}!A1`, values: [TABS[t]] })),
+          data: outdated.map((t) => ({ range: `${t}!A1`, values: [TABS[t]] })),
         }),
       });
     }
@@ -151,10 +167,15 @@ function toItem(c: Cell[]): Item {
     price: Number(c[2]) || 0,
     category: str(c[3]),
     available: bool(c[4]),
+    seller: str(c[5]),
   };
 }
 
-const itemCells = (i: Item): Cell[] => [i.id, i.name, i.price, i.category, i.available];
+const itemCells = (i: Item): Cell[] => [i.id, i.name, i.price, i.category, i.available, i.seller];
+
+function toSeller(c: Cell[], row: number): Seller {
+  return { id: str(c[0]) || `row-${row}`, name: str(c[1]), active: bool(c[2]) };
+}
 
 function toOrder(c: Cell[]): Order {
   let lines: OrderLine[] = [];
@@ -168,12 +189,13 @@ function toOrder(c: Cell[]): Order {
     lines,
     total: Number(c[4]) || 0,
     note: str(c[5]),
+    seller: str(c[7]),
   };
 }
 
-async function findItemRow(id: string) {
-  const row = (await readRows("Items")).find((r) => str(r.cells[0]) === id);
-  if (!row) throw new Error("Item not found");
+async function findRow(tab: Tab, id: string) {
+  const row = (await readRows(tab)).find((r) => str(r.cells[0]) === id || `row-${r.row}` === id);
+  if (!row) throw new Error(`${tab === "Items" ? "Item" : "Seller"} not found`);
   return row;
 }
 
@@ -188,11 +210,26 @@ export const sheetsStore: Store = {
     await appendRow("Items", itemCells(item));
   },
   async updateItem(id, patch) {
-    const { row, cells } = await findItemRow(id);
-    await writeRow("Items", row, itemCells({ ...toItem(cells), ...patch, id }));
+    const { row, cells } = await findRow("Items", id);
+    await writeRow("Items", row, itemCells({ ...toItem(cells), ...patch, id: str(cells[0]) || id }));
   },
   async deleteItem(id) {
-    await deleteRow("Items", (await findItemRow(id)).row);
+    await deleteRow("Items", (await findRow("Items", id)).row);
+  },
+
+  async listSellers() {
+    return (await readRows("Sellers")).map((r) => toSeller(r.cells, r.row)).filter((s) => s.name);
+  },
+  async addSeller(seller) {
+    await appendRow("Sellers", [seller.id, seller.name, seller.active]);
+  },
+  async updateSeller(id, patch) {
+    const { row, cells } = await findRow("Sellers", id);
+    const next = { ...toSeller(cells, row), ...patch };
+    await writeRow("Sellers", row, [str(cells[0]) || id, next.name, next.active]);
+  },
+  async deleteSeller(id) {
+    await deleteRow("Sellers", (await findRow("Sellers", id)).row);
   },
 
   async listNames() {
@@ -216,6 +253,7 @@ export const sheetsStore: Store = {
       o.total,
       o.note,
       JSON.stringify(o.lines),
+      o.seller,
     ]);
   },
   async listOrders(limit) {
