@@ -20,9 +20,9 @@ export function OrderList({
   const total = orders.reduce((s, o) => s + o.total, 0);
   const people = groupByName(orders);
   const items = groupByItem(orders);
-  // When every order is for the same seller and delivery date, say so once in the
-  // header instead of repeating the badges on each row.
-  const shared = new Set(orders.map((o) => `${o.seller}|${o.deliveryDate}`)).size === 1 ? orders[0] : undefined;
+  // When every order has the same delivery date, show it once in the header
+  // instead of on each row.
+  const shared = new Set(orders.map((o) => o.deliveryDate)).size === 1 ? orders[0] : undefined;
   const badges = !shared;
 
   return (
@@ -31,7 +31,7 @@ export function OrderList({
         header={
           <h2 className="font-semibold">
             {title} <span className="ml-1 text-sm font-normal text-zinc-500 tabular-nums">({orders.length})</span>
-            {shared && (shared.seller || shared.deliveryDate) && (
+            {shared?.deliveryDate && (
               <span className="ml-2 align-middle text-xs font-normal">
                 <Badges order={shared} />
               </span>
@@ -95,12 +95,7 @@ export function OrderList({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
                       {it.name}
-                      {it.unit && <span className="font-normal text-zinc-500"> ({it.unit})</span>}{" "}
-                      {it.seller && (
-                        <span className="ml-2 inline-block rounded-md bg-zinc-100 px-1.5 py-0.5 align-middle text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                          {it.seller}
-                        </span>
-                      )}
+                      {it.unit && <span className="font-normal text-zinc-500"> ({it.unit})</span>}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {it.buyers.map((b) => `${b.name} ×${b.qty}`).join(", ")}
@@ -144,11 +139,6 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
 function Badges({ order: o }: { order: Order }) {
   return (
     <>
-      {o.seller && (
-        <span className="mr-2 inline-block rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-          {o.seller}
-        </span>
-      )}{" "}
       {o.deliveryDate && (
         <span className="mr-2 inline-block rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
           Delivery {formatDay(o.deliveryDate)}
@@ -189,12 +179,12 @@ function groupByName(orders: Order[]) {
 function groupByItem(orders: Order[]) {
   const items = new Map<
     string,
-    { key: string; name: string; unit: string; seller: string; qty: number; amount: number; buyers: { name: string; qty: number }[] }
+    { key: string; name: string; unit: string; qty: number; amount: number; buyers: { name: string; qty: number }[] }
   >();
   for (const o of orders) {
     for (const l of o.lines) {
       const key = `${o.seller}|${l.itemId}|${l.unit ?? ""}`;
-      const it = items.get(key) ?? { key, name: l.name, unit: l.unit ?? "", seller: o.seller, qty: 0, amount: 0, buyers: [] };
+      const it = items.get(key) ?? { key, name: l.name, unit: l.unit ?? "", qty: 0, amount: 0, buyers: [] };
       it.qty += l.qty;
       it.amount += l.qty * l.price;
       const buyer = it.buyers.find((b) => sameName(b.name, o.name));
