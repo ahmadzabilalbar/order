@@ -20,3 +20,10 @@ export async function getNames() {
   cacheLife("minutes");
   return (await store.listNames()).sort((a, b) => a.localeCompare(b));
 }
+
+export async function getOrders() {
+  "use cache";
+  cacheTag("orders");
+  cacheLife("minutes");
+  return store.listOrders(Infinity);
+}

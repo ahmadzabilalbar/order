@@ -88,7 +88,7 @@ export function OrderForm({ items, names }: { items: Item[]; names: string[] }) 
   }
 
   return (
-    <div className="grid gap-6 pb-28 lg:grid-cols-[1fr_360px] lg:items-start lg:pb-0">
+    <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
       <div className="space-y-6">
         {/* Step 1: name */}
         <section className="card p-4 sm:p-5">

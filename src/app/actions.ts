@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { updateTag } from "next/cache";
 import { store } from "@/lib/store";
 import type { ActionResult, Order } from "@/lib/types";
 
@@ -37,6 +38,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<ActionResult<O
       total: Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100,
     };
     await store.addOrder(order);
+    updateTag("orders");
     return { ok: true, data: order };
   } catch (err) {
     console.error(err);

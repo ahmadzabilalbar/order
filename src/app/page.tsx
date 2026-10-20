@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { getMenu, getNames, isDemo } from "@/lib/store";
+import { getMenu, getNames, getOrders, isDemo } from "@/lib/store";
 import { DemoBanner } from "@/components/demo-banner";
+import { OrderList } from "@/components/order-list";
 import { OrderForm } from "./order-form";
 
 export default function Home() {
@@ -16,6 +17,12 @@ export default function Home() {
       <Suspense fallback={<MenuSkeleton />}>
         <Menu />
       </Suspense>
+      {/* Bottom padding keeps the list clear of the mobile cart bar. */}
+      <div className="mt-10 pb-28 lg:pb-0">
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />}>
+          <Orders />
+        </Suspense>
+      </div>
     </>
   );
 }
@@ -30,6 +37,11 @@ async function Menu() {
       <OrderForm items={items} names={names} />
     </>
   );
+}
+
+async function Orders() {
+  await connection();
+  return <OrderList orders={await getOrders()} />;
 }
 
 function MenuSkeleton() {
