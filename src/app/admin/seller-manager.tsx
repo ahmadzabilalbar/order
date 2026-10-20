@@ -5,15 +5,20 @@ import { Spinner } from "@/components/spinner";
 import { Switch } from "@/components/switch";
 import { keepValues } from "@/lib/forms";
 import { formatDay, sellerStatus, sellerWindow, type SellerStatus } from "@/lib/format";
+import { compressQr } from "@/lib/qr";
 import type { Item, Seller } from "@/lib/types";
 import { addSeller, deleteSeller, setSellerActive, updateSeller } from "./actions";
 
 export function SellerManager({ sellers, items, today }: { sellers: Seller[]; items: Item[]; today: string }) {
   const [state, action, pending] = useActionState(addSeller, null);
   const formRef = useRef<HTMLFormElement>(null);
+  // Bumped after a successful add to clear the QR field, which keeps its own state.
+  const [added, setAdded] = useState(0);
 
   useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
+    if (!state?.ok) return;
+    formRef.current?.reset();
+    setAdded((n) => n + 1); // eslint-disable-line react-hooks/set-state-in-effect
   }, [state]);
 
   return (
@@ -28,6 +33,7 @@ export function SellerManager({ sellers, items, today }: { sellers: Seller[]; it
           <button disabled={pending} className="btn-primary px-3.5">{pending ? <Spinner /> : "Add"}</button>
         </div>
         <DateFields />
+        <QrField key={added} />
         {state && !state.ok && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
       </form>
       {sellers.length === 0 ? (
@@ -62,6 +68,59 @@ function DateFields({ seller }: { seller?: Seller }) {
   );
 }
 
+/** Payment QR upload; the image is shrunk in the browser and sent as a data URL. */
+function QrField({ seller }: { seller?: Seller }) {
+  const [qr, setQr] = useState(seller?.qr ?? "");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div>
+      <span className="label">Payment QR</span>
+      <input type="hidden" name="qr" value={qr} />
+      <div className="flex items-center gap-3">
+        {qr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr} alt="Payment QR" className="size-16 rounded-lg border border-zinc-200 bg-white object-contain dark:border-zinc-700" />
+        ) : (
+          <span className="grid size-16 place-items-center rounded-lg border border-dashed border-zinc-300 text-[10px] text-zinc-400 dark:border-zinc-700">
+            No QR
+          </span>
+        )}
+        <div className="flex flex-col items-start gap-1">
+          <label className="btn-ghost cursor-pointer border border-zinc-200 px-2.5 py-1 text-xs dark:border-zinc-700">
+            {busy ? <Spinner /> : qr ? "Change image" : "Upload image"}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                setBusy(true);
+                setError("");
+                try {
+                  setQr(await compressQr(file));
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Couldn't read that image.");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+          {qr && (
+            <button type="button" onClick={() => setQr("")} className="text-xs text-zinc-500 hover:text-red-600">
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 const STATUS: Record<SellerStatus, { label: string; className: string }> = {
   open: { label: "Open", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
   upcoming: { label: "Upcoming", className: "bg-sky-500/10 text-sky-700 dark:text-sky-400" },
@@ -91,6 +150,7 @@ function SellerRow({ seller, today, itemCount }: { seller: Seller; today: string
         <form onSubmit={keepValues(action)} className="space-y-2">
           <input name="name" defaultValue={seller.name} required maxLength={60} className="input" aria-label="Seller name" />
           <DateFields seller={seller} />
+          <QrField seller={seller} />
           <div className="flex gap-2">
             <button disabled={saving} className="btn-primary flex-1">{saving ? <Spinner /> : "Save"}</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-ghost">Cancel</button>
@@ -114,6 +174,7 @@ function SellerRow({ seller, today, itemCount }: { seller: Seller; today: string
         <p className="text-xs text-zinc-500">
           {dates ? `Orders ${dates}` : "No date limits"}
           {seller.deliveryDate && <> · Delivery {formatDay(seller.deliveryDate)}</>} · {itemCount} item{itemCount === 1 ? "" : "s"}
+          {seller.qr ? " · QR added" : " · No QR"}
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>

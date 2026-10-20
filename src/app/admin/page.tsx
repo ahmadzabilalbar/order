@@ -65,7 +65,7 @@ async function AdminGate() {
         </div>
       </div>
 
-      <OrderList orders={orders} />
+      <OrderList orders={orders} managePaid qrs={Object.fromEntries(sellers.filter((s) => s.qr).map((s) => [s.id, s.qr]))} />
     </div>
   );
 }

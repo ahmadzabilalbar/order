@@ -88,6 +88,7 @@ export async function placeOrder(
       id: randomUUID().slice(0, 8).toUpperCase(),
       createdAt: new Date().toISOString(),
       updatedAt: "",
+      paid: false,
       ...built.data,
     };
     await store.addOrder(order);

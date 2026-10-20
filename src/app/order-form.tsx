@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { formatDay, formatPrice, orderSeller, sameName, sellerStatus } from "@/lib/format";
 import type { Item, Order, Seller } from "@/lib/types";
+import { ShareButton } from "@/components/share-button";
 import { Spinner } from "@/components/spinner";
 import { cancelOrder, placeOrder, updateOrder } from "./actions";
 
@@ -206,6 +207,7 @@ export function OrderForm({
         {heading}
         <Confirmation
           order={placed}
+          qr={sellers.find((s) => s.id === placed.sellerId)?.qr}
           edited={!!editing}
           onReset={editing ? leaveEditing : () => setPlaced(null)}
         />
@@ -582,7 +584,17 @@ function NameCheck({ order, onConfirmed }: { order: Order; onConfirmed: (name: s
   );
 }
 
-function Confirmation({ order, edited, onReset }: { order: Order; edited: boolean; onReset: () => void }) {
+function Confirmation({
+  order,
+  qr,
+  edited,
+  onReset,
+}: {
+  order: Order;
+  qr?: string;
+  edited: boolean;
+  onReset: () => void;
+}) {
   return (
     <div className="card mx-auto max-w-md overflow-hidden">
       <div className="bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-8 text-center text-white">
@@ -627,7 +639,19 @@ function Confirmation({ order, edited, onReset }: { order: Order; edited: boolea
           <span>Total</span>
           <span className="tabular-nums">{formatPrice(order.total)}</span>
         </div>
-        <button type="button" onClick={onReset} className="btn-primary mt-6 w-full py-3">
+        {qr && (
+          <div className="mt-5 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} alt="Payment QR code" className="mx-auto w-48 rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700" />
+            <p className="mt-2 text-xs text-zinc-500">Scan to pay {formatPrice(order.total)}</p>
+          </div>
+        )}
+        <ShareButton
+          order={order}
+          qr={qr}
+          className="mt-6 w-full rounded-xl bg-[#25D366] py-3 text-sm font-semibold text-white transition hover:bg-[#1ebe5b]"
+        />
+        <button type="button" onClick={onReset} className="btn-primary mt-3 w-full py-3">
           {edited ? "Back to ordering" : "Place another order"}
         </button>
       </div>

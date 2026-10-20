@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
+import { setOrderPaid } from "@/app/admin/actions";
 import { formatDay, formatLine, formatPrice, formatTime, sameName } from "@/lib/format";
 import type { Order, OrderLine } from "@/lib/types";
+import { ShareButton } from "./share-button";
 
 const VIEWS = [
   { id: "orders", label: "Orders" },
@@ -18,11 +20,17 @@ export function OrderList({
   orders: allOrders,
   title = "All orders",
   editable,
+  qrs = {},
+  managePaid,
 }: {
   orders: Order[];
   title?: string;
   /** Ids of orders that can still be edited; shows an Edit link on each. */
   editable?: Set<string>;
+  /** Payment QR data URL per seller id, attached when sharing an order. */
+  qrs?: Record<string, string>;
+  /** Admin view: each order gets a button to mark it paid or unpaid. */
+  managePaid?: boolean;
 }) {
   const [view, setView] = useState<View>("orders");
   const [query, setQuery] = useState("");
@@ -32,6 +40,7 @@ export function OrderList({
   const orders = q ? allOrders.filter((o) => o.name.toLowerCase().includes(q)) : allOrders;
 
   const total = orders.reduce((s, o) => s + o.total, 0);
+  const unpaid = orders.filter((o) => !o.paid).reduce((s, o) => s + o.total, 0);
   // When every order has the same delivery date, show it once in the header
   // instead of on each row.
   const shared = new Set(allOrders.map((o) => o.deliveryDate)).size === 1 ? allOrders[0] : undefined;
@@ -89,6 +98,11 @@ export function OrderList({
             </div>
             <span className="text-sm text-zinc-500">
               Total <span className="font-semibold text-zinc-900 tabular-nums dark:text-zinc-100">{formatPrice(total)}</span>
+              {unpaid > 0 && (
+                <>
+                  {" "}· Unpaid <span className="font-semibold text-amber-600 tabular-nums dark:text-amber-400">{formatPrice(unpaid)}</span>
+                </>
+              )}
             </span>
           </div>
         )}
@@ -100,7 +114,7 @@ export function OrderList({
       ) : view === "orders" ? (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {orders.map((o) => (
-            <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} inline={inline} />
+            <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} inline={inline} qr={qrs[o.sellerId]} managePaid={managePaid} />
           ))}
         </ul>
       ) : view === "names" ? (
@@ -126,6 +140,8 @@ export function OrderList({
                     </div>
                     <span className="font-mono text-xs leading-5 text-zinc-400">#{o.id}</span>
                     <span className="leading-5 tabular-nums">{formatPrice(o.total)}</span>
+                    <Paid order={o} manage={managePaid} />
+                    <ShareButton order={o} qr={qrs[o.sellerId]} className={SHARE_CLASS} />
                     {editable?.has(o.id) && <EditLink id={o.id} />}
                   </li>
                 ))}
@@ -163,11 +179,15 @@ function OrderRow({
   editable,
   badges,
   inline,
+  qr,
+  managePaid,
 }: {
   order: Order;
   editable?: boolean;
   badges: boolean;
   inline: boolean;
+  qr?: string;
+  managePaid?: boolean;
 }) {
   return (
     <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
@@ -186,6 +206,8 @@ function OrderRow({
       <div className="flex items-center gap-3 text-sm sm:justify-end">
         <span className="font-mono text-xs text-zinc-400">#{o.id}</span>
         <span className="font-semibold tabular-nums">{formatPrice(o.total)}</span>
+        <Paid order={o} manage={managePaid} />
+        <ShareButton order={o} qr={qr} className={SHARE_CLASS} />
         {editable && <EditLink id={o.id} />}
       </div>
     </li>
@@ -221,6 +243,40 @@ function Badges({ order: o }: { order: Order }) {
     </>
   );
 }
+
+/** Paid status: a toggle for the admin, otherwise a badge shown once paid. */
+function Paid({ order, manage }: { order: Order; manage?: boolean }) {
+  const [paid, setPaid] = useOptimistic(order.paid);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState("");
+  const badge = paid
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+    : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+
+  if (!manage) {
+    return paid ? <span className={`rounded-md border px-1.5 py-0.5 text-xs font-medium ${badge}`}>Paid</span> : null;
+  }
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      title={error || (paid ? "Paid. Click to mark unpaid" : "Unpaid. Click to mark paid")}
+      onClick={() =>
+        startTransition(async () => {
+          setPaid(!paid);
+          const res = await setOrderPaid(order.id, !paid);
+          setError(res.ok ? "" : res.error);
+        })
+      }
+      className={`rounded-md border px-2 py-0.5 text-xs font-medium transition ${badge} ${error ? "ring-2 ring-red-500/50" : ""}`}
+    >
+      {paid ? "✓ Paid" : "Unpaid"}
+    </button>
+  );
+}
+
+const SHARE_CLASS =
+  "btn-ghost border border-zinc-200 px-2 py-0.5 text-xs text-[#1a9e4b] dark:border-zinc-700 dark:text-[#25D366]";
 
 function EditLink({ id }: { id: string }) {
   return (

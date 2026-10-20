@@ -6,18 +6,18 @@ import type { Item, Order, OrderLine, Seller, Store } from "./types";
 /**
  * Google Sheets-backed store. One spreadsheet, four tabs:
  *   Items:   id | name | price | category | available | seller | unit
- *   Sellers: id | name | active | start_date | end_date | delivery_date
+ *   Sellers: id | name | active | start_date | end_date | delivery_date | payment_qr
  *   Names:   name
- *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date | seller_id | updated_at
+ *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date | seller_id | updated_at | paid
  * Missing tabs and header rows are created automatically on first use, and
  * headers from an older version gain the new columns.
  */
 
 const TABS = {
   Items: ["id", "name", "price", "category", "available", "seller", "unit"],
-  Sellers: ["id", "name", "active", "start_date", "end_date", "delivery_date"],
+  Sellers: ["id", "name", "active", "start_date", "end_date", "delivery_date", "payment_qr"],
   Names: ["name"],
-  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date", "seller_id", "updated_at"],
+  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date", "seller_id", "updated_at", "paid"],
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -192,10 +192,11 @@ function toSeller(c: Cell[], row: number): Seller {
     startDate: day(c[3]),
     endDate: day(c[4]),
     deliveryDate: day(c[5]),
+    qr: str(c[6]).startsWith("data:image/") ? str(c[6]) : "",
   };
 }
 
-const sellerCells = (s: Seller): Cell[] => [s.id, s.name, s.active, s.startDate, s.endDate, s.deliveryDate];
+const sellerCells = (s: Seller): Cell[] => [s.id, s.name, s.active, s.startDate, s.endDate, s.deliveryDate, s.qr];
 
 function toOrder(c: Cell[]): Order {
   let lines: OrderLine[] = [];
@@ -213,6 +214,8 @@ function toOrder(c: Cell[]): Order {
     deliveryDate: day(c[8]),
     sellerId: str(c[9]),
     updatedAt: str(c[10]),
+    // Empty (older rows) means unpaid.
+    paid: c[11] === true || ["true", "yes", "1"].includes(str(c[11]).toLowerCase()),
   };
 }
 
@@ -228,6 +231,7 @@ const orderCells = (o: Order): Cell[] => [
   o.deliveryDate,
   o.sellerId,
   o.updatedAt,
+  o.paid,
 ];
 
 async function findOrderRow(id: string) {

@@ -5,6 +5,7 @@ import { refresh, updateTag } from "next/cache";
 import { checkPassword, createSession, destroySession, isAdmin } from "@/lib/auth";
 import { store } from "@/lib/store";
 import type { ActionResult } from "@/lib/types";
+import { QR_MAX_LENGTH } from "@/lib/qr";
 
 export async function login(_: unknown, formData: FormData): Promise<ActionResult> {
   if (!process.env.ADMIN_PASSWORD) {
@@ -71,6 +72,15 @@ export async function deleteItem(id: string) {
   return guarded("items", () => store.deleteItem(id));
 }
 
+/** Records that the buyer paid (or undoes it); payment itself happens outside the app. */
+export async function setOrderPaid(id: string, paid: boolean) {
+  return guarded("orders", async () => {
+    const order = (await store.listOrders(Infinity)).find((o) => o.id === id);
+    if (!order) throw new Error("This order no longer exists.");
+    await store.updateOrder({ ...order, paid });
+  });
+}
+
 function parseSeller(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
   const date = (key: string) => {
@@ -86,7 +96,12 @@ function parseSeller(formData: FormData) {
   if (deliveryDate && startDate && deliveryDate < startDate) {
     throw new Error("Delivery date can't be before the start date.");
   }
-  return { name, startDate, endDate, deliveryDate };
+  // The browser shrinks the QR image to a data URL small enough for one sheet cell.
+  const qr = String(formData.get("qr") ?? "");
+  if (qr && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(qr) || qr.length > QR_MAX_LENGTH)) {
+    throw new Error("The QR image couldn't be saved. Try a smaller or clearer image.");
+  }
+  return { name, startDate, endDate, deliveryDate, qr };
 }
 
 async function assertUniqueSeller(name: string, exceptId?: string) {

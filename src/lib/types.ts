@@ -20,6 +20,8 @@ export type Seller = {
   endDate: string;
   /** When orders are delivered (YYYY-MM-DD); empty = not announced. */
   deliveryDate: string;
+  /** Payment QR code as an image data URL; empty = none uploaded. */
+  qr: string;
 };
 
 export type OrderLine = {
@@ -46,6 +48,8 @@ export type Order = {
   sellerId: string;
   /** ISO time of the last edit; empty if never edited. */
   updatedAt: string;
+  /** Marked by the admin once the buyer has paid (QR or cash). */
+  paid: boolean;
 };
 
 export type ActionResult<T = undefined> =

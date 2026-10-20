@@ -54,7 +54,8 @@ async function Orders() {
   const [orders, sellers] = await Promise.all([getOrders(), getSellers()]);
   const today = todayISO();
   const editable = new Set(orders.filter((o) => canEditOrder(o, sellers, today)).map((o) => o.id));
-  return <OrderList orders={orders} editable={editable} />;
+  const qrs = Object.fromEntries(sellers.filter((s) => s.qr).map((s) => [s.id, s.qr]));
+  return <OrderList orders={orders} editable={editable} qrs={qrs} />;
 }
 
 function MenuSkeleton() {
