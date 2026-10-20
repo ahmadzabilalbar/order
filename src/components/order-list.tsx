@@ -59,7 +59,6 @@ export function OrderList({
               {people.map((p) => (
                 <li key={p.name} className="px-5 py-2.5">
                   <div className="flex items-center gap-3">
-                    <Avatar name={p.name} />
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold">
                       {p.name}{" "}
                       <span className="ml-1 font-normal text-zinc-500">
@@ -68,7 +67,7 @@ export function OrderList({
                     </p>
                     <span className="text-sm font-semibold tabular-nums">{formatPrice(p.total)}</span>
                   </div>
-                  <ul className="mt-1 space-y-1 pl-10">
+                  <ul className="mt-1 space-y-1">
                     {p.orders.map((o) => (
                       <li key={o.id} className="flex items-start gap-3 text-xs">
                         <div className="min-w-0 flex-1 leading-5 text-zinc-600 dark:text-zinc-300">
@@ -121,15 +120,12 @@ export function OrderList({
 function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boolean; badges: boolean }) {
   return (
     <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-center sm:gap-4">
-      <div className="flex items-center gap-2.5 sm:w-40 sm:shrink-0">
-        <Avatar name={o.name} />
-        <div className="min-w-0">
-          <p className="truncate text-sm leading-5 font-medium">{o.name}</p>
-          <p className="text-[11px] leading-4 text-zinc-500">
-            {o.createdAt ? formatTime(o.createdAt) : ""}
-            {o.updatedAt && <span title={`Edited ${formatTime(o.updatedAt)}`}> · edited</span>}
-          </p>
-        </div>
+      <div className="min-w-0 sm:w-32 sm:shrink-0">
+        <p className="truncate text-sm leading-5 font-medium">{o.name}</p>
+        <p className="text-[11px] leading-4 text-zinc-500">
+          {o.createdAt ? formatTime(o.createdAt) : ""}
+          {o.updatedAt && <span title={`Edited ${formatTime(o.updatedAt)}`}> · edited</span>}
+        </p>
       </div>
       <div className="min-w-0 flex-1 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
         {badges && <Badges order={o} />}
@@ -142,14 +138,6 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
         {editable && <EditLink id={o.id} />}
       </div>
     </li>
-  );
-}
-
-function Avatar({ name }: { name: string }) {
-  return (
-    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
-      {name.charAt(0).toUpperCase()}
-    </span>
   );
 }
 
