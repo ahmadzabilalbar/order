@@ -9,12 +9,6 @@ import { OrderForm } from "./order-form";
 export default function Home() {
   return (
     <>
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">What would you like?</h1>
-        <p className="mt-2 text-zinc-500 dark:text-zinc-400">
-          Pick your name, add a few items and place your order.
-        </p>
-      </div>
       <Suspense fallback={<MenuSkeleton />}>
         <Menu />
       </Suspense>
@@ -53,16 +47,22 @@ async function Orders() {
 
 function MenuSkeleton() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-      <div className="space-y-4">
-        <div className="h-20 animate-pulse rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
-          ))}
-        </div>
+    <>
+      <div className="mb-6 space-y-3 sm:mb-8">
+        <div className="h-10 w-72 max-w-full animate-pulse rounded-xl bg-zinc-200/70 dark:bg-zinc-800/70" />
+        <div className="h-7 w-56 max-w-full animate-pulse rounded-lg bg-zinc-200/70 dark:bg-zinc-800/70" />
       </div>
-      <div className="hidden h-72 animate-pulse rounded-2xl bg-zinc-200/70 lg:block dark:bg-zinc-800/70" />
-    </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-4">
+          <div className="h-20 animate-pulse rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-zinc-200/70 dark:bg-zinc-800/70" />
+            ))}
+          </div>
+        </div>
+        <div className="hidden h-72 animate-pulse rounded-2xl bg-zinc-200/70 lg:block dark:bg-zinc-800/70" />
+      </div>
+    </>
   );
 }

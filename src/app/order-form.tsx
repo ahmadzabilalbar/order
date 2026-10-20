@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { formatDay, formatPrice, sellerStatus } from "@/lib/format";
 import type { Item, Order, Seller } from "@/lib/types";
 import { Spinner } from "@/components/spinner";
@@ -56,7 +56,6 @@ export function OrderForm({
 
   // Items without a seller are offered by every seller.
   const menu = sellersEnabled ? items.filter((i) => !i.seller || i.seller === seller?.id) : items;
-  const step = sellersEnabled ? 1 : 0;
 
   const chooseSeller = (id: string) => {
     setPickedSeller(id);
@@ -106,214 +105,244 @@ export function OrderForm({
     });
   }
 
-  if (placed) return <Confirmation order={placed} onReset={() => setPlaced(null)} />;
+  // Page heading: the chosen seller's name (a dropdown when there is a choice) and its
+  // order-by / delivery dates; falls back to a generic heading without sellers.
+  const heading =
+    sellersEnabled && seller ? (
+      <PageHeading
+        title={
+          sellers.length > 1 && !placed ? (
+            <SellerSelect sellers={sellers} today={today} value={seller.id} onChange={chooseSeller} />
+          ) : (
+            (placed?.seller || seller.name)
+          )
+        }
+        subtitle={
+          seller.endDate || seller.deliveryDate ? (
+            <div className="flex flex-wrap gap-2 text-sm">
+              {seller.endDate && (
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  Order by <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
+                </span>
+              )}
+              {seller.deliveryDate && (
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                  <TruckIcon />
+                  Delivery on <strong className="font-semibold">{formatDay(seller.deliveryDate)}</strong>
+                </span>
+              )}
+            </div>
+          ) : (
+            DEFAULT_SUBTITLE
+          )
+        }
+      />
+    ) : (
+      <PageHeading title="What would you like?" subtitle={DEFAULT_SUBTITLE} />
+    );
+
+  if (placed) {
+    return (
+      <>
+        {heading}
+        <Confirmation order={placed} onReset={() => setPlaced(null)} />
+      </>
+    );
+  }
 
   if (sellersEnabled && !openSellers.length) {
     const upcoming = sellers
       .filter((s) => sellerStatus(s, today) === "upcoming")
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
     return (
-      <div className="card grid place-items-center px-6 py-16 text-center">
-        <p className="text-4xl">🌙</p>
-        <p className="mt-3 font-medium">No sellers are taking orders right now</p>
-        {upcoming.length ? (
-          <ul className="mt-3 space-y-1 text-sm text-zinc-500">
-            {upcoming.map((s) => (
-              <li key={s.id}>
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.name}</span> opens {formatDay(s.startDate)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-1 text-sm text-zinc-500">Please check back later.</p>
-        )}
-      </div>
+      <>
+        {heading}
+        <div className="card grid place-items-center px-6 py-16 text-center">
+          <p className="text-4xl">🌙</p>
+          <p className="mt-3 font-medium">No sellers are taking orders right now</p>
+          {upcoming.length ? (
+            <ul className="mt-3 space-y-1 text-sm text-zinc-500">
+              {upcoming.map((s) => (
+                <li key={s.id}>
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.name}</span> opens {formatDay(s.startDate)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-500">Please check back later.</p>
+          )}
+        </div>
+      </>
     );
   }
 
   if (!items.length) {
     return (
-      <div className="card grid place-items-center px-6 py-16 text-center">
-        <p className="text-4xl">🍽️</p>
-        <p className="mt-3 font-medium">The menu is empty</p>
-        <p className="mt-1 text-sm text-zinc-500">An admin needs to add some items first.</p>
-      </div>
+      <>
+        {heading}
+        <div className="card grid place-items-center px-6 py-16 text-center">
+          <p className="text-4xl">🍽️</p>
+          <p className="mt-3 font-medium">The menu is empty</p>
+          <p className="mt-1 text-sm text-zinc-500">An admin needs to add some items first.</p>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
-      <div className="space-y-6">
-        {sellersEnabled && seller && (
+    <>
+      {heading}
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
+        <div className="space-y-6">
+          {/* Name */}
           <section className="card p-4 sm:p-5">
-            <StepTitle n={1} title="Order from" />
-            <SellerSelect sellers={sellers} today={today} value={seller.id} onChange={chooseSeller} />
-            {(seller.endDate || seller.deliveryDate) && (
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                {seller.endDate && (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                    Order by <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
-                  </span>
-                )}
-                {seller.deliveryDate && (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
-                    <TruckIcon />
-                    Delivery on <strong className="font-semibold">{formatDay(seller.deliveryDate)}</strong>
-                  </span>
-                )}
+            <StepTitle n={1} title="Who's ordering?" />
+            {names.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {[...names, OTHER].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setSelected(n)}
+                    aria-pressed={selected === n}
+                    className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                      selected === n
+                        ? "border-brand-600 bg-brand-600 text-white shadow-sm shadow-brand-600/30"
+                        : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {n === OTHER ? "Someone else…" : n}
+                  </button>
+                ))}
               </div>
+            ) : null}
+            {(names.length === 0 || selected === OTHER) && (
+              <input
+                className="input mt-3"
+                placeholder="Type your name"
+                value={customName}
+                maxLength={60}
+                onChange={(e) => setCustomName(e.target.value)}
+                autoFocus={selected === OTHER}
+              />
             )}
           </section>
-        )}
 
-        {/* Name */}
-        <section className="card p-4 sm:p-5">
-          <StepTitle n={step + 1} title="Who's ordering?" />
-          {names.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {[...names, OTHER].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setSelected(n)}
-                  aria-pressed={selected === n}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
-                    selected === n
-                      ? "border-brand-600 bg-brand-600 text-white shadow-sm shadow-brand-600/30"
-                      : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  {n === OTHER ? "Someone else…" : n}
-                </button>
-              ))}
+          {/* Step 2: items */}
+          <section>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <StepTitle n={2} title="Pick your items" className="mb-0" />
+              <div className="relative sm:w-56">
+                <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  className="input py-2 pl-9"
+                  placeholder="Search menu"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
             </div>
-          ) : null}
-          {(names.length === 0 || selected === OTHER) && (
-            <input
-              className="input mt-3"
-              placeholder="Type your name"
-              value={customName}
-              maxLength={60}
-              onChange={(e) => setCustomName(e.target.value)}
-              autoFocus={selected === OTHER}
-            />
-          )}
-        </section>
 
-        {/* Step 2: items */}
-        <section>
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <StepTitle n={step + 2} title="Pick your items" className="mb-0" />
-            <div className="relative sm:w-56">
-              <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-              <input
-                className="input py-2 pl-9"
-                placeholder="Search menu"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {categories.length > 2 && (
-            <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    category === c
-                      ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                      : "text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {visible.map((item) => {
-              const qty = cart[item.id] ?? 0;
-              return (
-                <div
-                  key={item.id}
-                  className={`card flex items-center gap-3 p-4 transition ${
-                    qty ? "border-brand-500/60 ring-4 ring-brand-500/10 dark:border-brand-500/50" : ""
-                  }`}
-                >
-                  <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-lg font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
-                    {item.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{item.name}</p>
-                    <p className="text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-                      {formatPrice(item.price)}
-                      {item.unit && <span className="text-zinc-400 dark:text-zinc-500"> · {item.unit}</span>}
-                    </p>
-                  </div>
-                  {qty === 0 ? (
-                    <button type="button" onClick={() => setQty(item.id, 1)} className="btn-primary px-3.5 py-2">
-                      Add
-                    </button>
-                  ) : (
-                    <Stepper qty={qty} onChange={(q) => setQty(item.id, q)} label={item.name} />
-                  )}
-                </div>
-              );
-            })}
-            {!visible.length && (
-              <p className="col-span-full py-10 text-center text-sm text-zinc-500">
-                {menu.length ? "No items match your search." : `${seller?.name ?? "This seller"} has no items yet.`}
-              </p>
+            {categories.length > 2 && (
+              <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
+                {categories.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategory(c)}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                      category === c
+                        ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                        : "text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
             )}
-          </div>
-        </section>
-      </div>
 
-      {/* Step 3: summary (sidebar on desktop) */}
-      <aside className="card hidden p-5 lg:sticky lg:top-20 lg:block">
-        <StepTitle n={step + 3} title="Your order" />
-        {seller && sellersEnabled && (
-          <p className="-mt-1 mb-2 text-sm text-zinc-500 dark:text-zinc-400">
-            From <span className="font-medium text-zinc-900 dark:text-zinc-100">{seller.name}</span>
-            {seller.deliveryDate && <> · Delivery {formatDay(seller.deliveryDate)}</>}
-          </p>
-        )}
-        <Summary lines={lines} total={total} name={name} onQty={setQty} />
-        <textarea
-          className="input mt-4 min-h-20 resize-none"
-          placeholder="Note (optional) — e.g. less sugar"
-          maxLength={300}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {visible.map((item) => {
+                const qty = cart[item.id] ?? 0;
+                return (
+                  <div
+                    key={item.id}
+                    className={`card flex items-center gap-3 p-4 transition ${
+                      qty ? "border-brand-500/60 ring-4 ring-brand-500/10 dark:border-brand-500/50" : ""
+                    }`}
+                  >
+                    <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-lg font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                      {item.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{item.name}</p>
+                      <p className="text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
+                        {formatPrice(item.price)}
+                        {item.unit && <span className="text-zinc-400 dark:text-zinc-500"> · {item.unit}</span>}
+                      </p>
+                    </div>
+                    {qty === 0 ? (
+                      <button type="button" onClick={() => setQty(item.id, 1)} className="btn-primary px-3.5 py-2">
+                        Add
+                      </button>
+                    ) : (
+                      <Stepper qty={qty} onChange={(q) => setQty(item.id, q)} label={item.name} />
+                    )}
+                  </div>
+                );
+              })}
+              {!visible.length && (
+                <p className="col-span-full py-10 text-center text-sm text-zinc-500">
+                  {menu.length ? "No items match your search." : `${seller?.name ?? "This seller"} has no items yet.`}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Step 3: summary (sidebar on desktop) */}
+        <aside className="card hidden p-5 lg:sticky lg:top-20 lg:block">
+          <StepTitle n={3} title="Your order" />
+          {seller && sellersEnabled && (
+            <p className="-mt-1 mb-2 text-sm text-zinc-500 dark:text-zinc-400">
+              From <span className="font-medium text-zinc-900 dark:text-zinc-100">{seller.name}</span>
+              {seller.deliveryDate && <> · Delivery {formatDay(seller.deliveryDate)}</>}
+            </p>
+          )}
+          <Summary lines={lines} total={total} name={name} onQty={setQty} />
+          <textarea
+            className="input mt-4 min-h-20 resize-none"
+            placeholder="Note (optional) — e.g. less sugar"
+            maxLength={300}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
+          <button type="button" onClick={submit} disabled={pending} className="btn-primary mt-4 w-full py-3">
+            {pending ? <Spinner /> : null}
+            {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}
+          </button>
+        </aside>
+
+        {/* Mobile bottom sheet */}
+        <MobileBar
+          count={count}
+          total={total}
+          pending={pending}
+          error={error}
+          onSubmit={submit}
+          note={note}
+          setNote={setNote}
+          lines={lines}
+          name={name}
+          onQty={setQty}
         />
-        {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
-        <button type="button" onClick={submit} disabled={pending} className="btn-primary mt-4 w-full py-3">
-          {pending ? <Spinner /> : null}
-          {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}
-        </button>
-      </aside>
-
-      {/* Mobile bottom sheet */}
-      <MobileBar
-        count={count}
-        total={total}
-        pending={pending}
-        error={error}
-        onSubmit={submit}
-        note={note}
-        setNote={setNote}
-        lines={lines}
-        name={name}
-        onQty={setQty}
-      />
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -488,6 +517,18 @@ export function TruckIcon() {
   );
 }
 
+const DEFAULT_SUBTITLE = "Pick your name, add a few items and place your order.";
+
+function PageHeading({ title, subtitle }: { title: ReactNode; subtitle: ReactNode }) {
+  return (
+    <div className="mb-6 sm:mb-8">
+      <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
+      <div className="mt-3 text-zinc-500 dark:text-zinc-400">{subtitle}</div>
+    </div>
+  );
+}
+
+/** The page title doubles as the seller picker when there is more than one seller. */
 function SellerSelect({
   sellers,
   today,
@@ -500,28 +541,28 @@ function SellerSelect({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="relative">
+    <span className="relative inline-flex max-w-full items-center">
       <select
         aria-label="Seller"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input cursor-pointer appearance-none py-3 pr-10 text-base font-medium"
+        className="max-w-full cursor-pointer appearance-none truncate rounded-xl bg-transparent [field-sizing:content] py-0.5 pr-10 pl-0 outline-none hover:text-brand-600 focus-visible:ring-4 focus-visible:ring-brand-500/20 dark:hover:text-brand-400"
       >
         {sellers.map((s) => {
           const status = sellerStatus(s, today);
           const note = status === "upcoming" ? ` (opens ${formatDay(s.startDate)})` : status === "ended" ? " (closed)" : "";
           return (
-            <option key={s.id} value={s.id} disabled={status !== "open"}>
+            <option key={s.id} value={s.id} disabled={status !== "open"} className="text-base text-zinc-900">
               {s.name}
               {note}
             </option>
           );
         })}
       </select>
-      <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute right-1 size-6 text-zinc-400 sm:size-7" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="m6 9 6 6 6-6" />
       </svg>
-    </div>
+    </span>
   );
 }
 
