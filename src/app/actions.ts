@@ -42,7 +42,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<ActionResult<O
     const lines = Object.entries(input.cart ?? {})
       .map(([id, qty]) => ({ item: items.get(id), qty: Math.floor(Number(qty)) }))
       .filter(({ item, qty }) => item?.available && sellsItem(item.seller) && qty > 0 && qty <= 99)
-      .map(({ item, qty }) => ({ itemId: item!.id, name: item!.name, price: item!.price, qty }));
+      .map(({ item, qty }) => ({ itemId: item!.id, name: item!.name, price: item!.price, unit: item!.unit, qty }));
 
     if (!lines.length) {
       return { ok: false, error: "Your cart is empty or items are no longer available." };

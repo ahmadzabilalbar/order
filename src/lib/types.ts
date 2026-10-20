@@ -6,6 +6,8 @@ export type Item = {
   available: boolean;
   /** Seller id; empty means the item is offered by every seller. */
   seller: string;
+  /** What one unit is, e.g. "1 pc", "2 pcs/pack", "500 g"; empty = not stated. */
+  unit: string;
 };
 
 export type Seller = {
@@ -25,6 +27,8 @@ export type OrderLine = {
   name: string;
   price: number;
   qty: number;
+  /** Item unit at the time of ordering (may be missing on older orders). */
+  unit?: string;
 };
 
 export type Order = {

@@ -9,6 +9,7 @@ import type { Item, Seller } from "@/lib/types";
 import { addItem, deleteItem, setAvailable, updateItem } from "./actions";
 
 const ALL = "__all__";
+const UNIT_SUGGESTIONS = ["1 pc", "2 pcs/pack", "3 pcs/pack", "4 pcs/pack", "6 pcs/pack", "10 pcs/pack", "1 pack", "1 box", "1 cup", "1 bottle", "250 g", "500 g", "1 kg"];
 
 export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller[] }) {
   const [state, action, pending] = useActionState(addItem, null);
@@ -40,22 +41,27 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
         )}
       </div>
 
+      <datalist id="units">
+        {UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}
+      </datalist>
       <form
         ref={formRef}
         onSubmit={keepValues(action)}
-        className={`grid gap-3 border-b border-zinc-100 bg-zinc-50/60 p-5 sm:items-end dark:border-zinc-800 dark:bg-zinc-950/30 ${
-          hasSellers ? "sm:grid-cols-[1fr_110px_130px_150px_auto]" : "sm:grid-cols-[1fr_120px_140px_auto]"
-        }`}
+        className="grid gap-3 border-b border-zinc-100 bg-zinc-50/60 p-5 sm:grid-cols-6 sm:items-end dark:border-zinc-800 dark:bg-zinc-950/30"
       >
-        <div>
+        <div className="sm:col-span-3">
           <label className="label" htmlFor="new-name">Item name</label>
-          <input id="new-name" name="name" required maxLength={80} placeholder="e.g. Iced Latte" className="input" />
+          <input id="new-name" name="name" required maxLength={80} placeholder="e.g. Sosej Pintal" className="input" />
         </div>
         <div>
           <label className="label" htmlFor="new-price">Price</label>
           <input id="new-price" name="price" required inputMode="decimal" placeholder="0.00" className="input tabular-nums" />
         </div>
-        <div>
+        <div className="sm:col-span-2">
+          <label className="label" htmlFor="new-unit">Unit</label>
+          <input id="new-unit" name="unit" list="units" maxLength={30} placeholder="e.g. 2 pcs/pack" className="input" />
+        </div>
+        <div className={hasSellers ? "sm:col-span-2" : "sm:col-span-4"}>
           <label className="label" htmlFor="new-cat">Category</label>
           <input id="new-cat" name="category" list="categories" maxLength={40} placeholder="Optional" className="input" />
           <datalist id="categories">
@@ -63,7 +69,7 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
           </datalist>
         </div>
         {hasSellers && (
-          <div>
+          <div className="sm:col-span-2">
             <label className="label" htmlFor="new-seller">Seller</label>
             <SellerSelect
               id="new-seller"
@@ -76,9 +82,9 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
             />
           </div>
         )}
-        <button disabled={pending} className="btn-primary">
+        <button disabled={pending} className="btn-primary sm:col-span-2">
           {pending ? <Spinner /> : <span aria-hidden>+</span>}
-          Add
+          Add item
         </button>
         {state && !state.ok && <p className="text-sm font-medium text-red-600 sm:col-span-full dark:text-red-400">{state.error}</p>}
       </form>
@@ -117,17 +123,17 @@ function ItemRow({ item, sellers, sellerName }: { item: Item; sellers: Seller[];
   if (editing) {
     return (
       <li className="p-4">
-        <form
-          onSubmit={keepValues(action)}
-          className={`grid gap-2 sm:items-center ${sellers.length ? "sm:grid-cols-[1fr_100px_120px_140px_auto]" : "sm:grid-cols-[1fr_110px_130px_auto]"}`}
-        >
-          <input name="name" defaultValue={item.name} required maxLength={80} className="input" aria-label="Name" />
+        <form onSubmit={keepValues(action)} className="grid gap-2 sm:grid-cols-6 sm:items-center">
+          <input name="name" defaultValue={item.name} required maxLength={80} className="input sm:col-span-3" aria-label="Name" />
           <input name="price" defaultValue={item.price} required inputMode="decimal" className="input tabular-nums" aria-label="Price" />
-          <input name="category" defaultValue={item.category} maxLength={40} className="input" aria-label="Category" placeholder="Category" />
+          <input name="unit" defaultValue={item.unit} list="units" maxLength={30} className="input sm:col-span-2" aria-label="Unit" placeholder="Unit, e.g. 2 pcs/pack" />
+          <input name="category" defaultValue={item.category} maxLength={40} className={`input ${sellers.length ? "sm:col-span-2" : "sm:col-span-4"}`} aria-label="Category" placeholder="Category" />
           {sellers.length > 0 && (
-            <SellerSelect name="seller" sellers={sellers} defaultValue={item.seller} label="Seller" options={[{ value: "", label: "Every seller" }]} />
+            <div className="sm:col-span-2">
+              <SellerSelect name="seller" sellers={sellers} defaultValue={item.seller} label="Seller" options={[{ value: "", label: "Every seller" }]} />
+            </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 sm:col-span-2">
             <button disabled={saving} className="btn-primary flex-1">{saving ? <Spinner /> : "Save"}</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-ghost">Cancel</button>
           </div>
@@ -143,6 +149,7 @@ function ItemRow({ item, sellers, sellerName }: { item: Item; sellers: Seller[];
         <p className={`truncate font-medium ${item.available ? "" : "text-zinc-400 line-through"}`}>{item.name}</p>
         <p className="text-xs text-zinc-500">
           <span className="tabular-nums">{formatPrice(item.price)}</span>
+          {item.unit && <> / {item.unit}</>}
           {item.category && <> · {item.category}</>}
           {sellerName && <> · {sellerName}</>}
         </p>

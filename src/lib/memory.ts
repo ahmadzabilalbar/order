@@ -11,12 +11,12 @@ type Db = { items: Item[]; sellers: Seller[]; names: string[]; orders: Order[] }
 const g = globalThis as unknown as { __orderDb?: Db };
 const db: Db = (g.__orderDb ??= {
   items: [
-    { id: "latte", name: "Caffè Latte", price: 9.5, category: "Drinks", available: true, seller: "kopi" },
-    { id: "mocha", name: "Mocha", price: 10.5, category: "Drinks", available: true, seller: "kopi" },
-    { id: "teh-tarik", name: "Teh Tarik", price: 4.5, category: "Drinks", available: true, seller: "kopi" },
-    { id: "nasi-lemak", name: "Nasi Lemak", price: 8, category: "Food", available: true, seller: "dapur" },
-    { id: "croissant", name: "Butter Croissant", price: 6.9, category: "Food", available: true, seller: "dapur" },
-    { id: "brownie", name: "Fudge Brownie", price: 5.5, category: "Dessert", available: false, seller: "" },
+    { id: "latte", name: "Caffè Latte", price: 9.5, category: "Drinks", available: true, seller: "kopi", unit: "1 cup" },
+    { id: "mocha", name: "Mocha", price: 10.5, category: "Drinks", available: true, seller: "kopi", unit: "1 cup" },
+    { id: "teh-tarik", name: "Teh Tarik", price: 4.5, category: "Drinks", available: true, seller: "kopi", unit: "1 cup" },
+    { id: "nasi-lemak", name: "Nasi Lemak", price: 8, category: "Food", available: true, seller: "dapur", unit: "1 pack" },
+    { id: "croissant", name: "Butter Croissant", price: 6.9, category: "Food", available: true, seller: "dapur", unit: "2 pcs/pack" },
+    { id: "brownie", name: "Fudge Brownie", price: 5.5, category: "Dessert", available: false, seller: "", unit: "1 pc" },
   ],
   sellers: [
     { id: "kopi", name: "Kopi Sini", active: true, startDate: "", endDate: "", deliveryDate: "" },

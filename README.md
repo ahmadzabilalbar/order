@@ -46,7 +46,7 @@ Open http://localhost:3000, and http://localhost:3000/admin for the admin page.
 
 | Tab | Columns |
 | --- | --- |
-| `Items` | `id`, `name`, `price`, `category`, `available`, `seller` (seller id; blank = every seller) |
+| `Items` | `id`, `name`, `price`, `category`, `available`, `seller` (seller id; blank = every seller), `unit` (e.g. `2 pcs/pack`) |
 | `Sellers` | `id`, `name`, `active` (`TRUE`/`FALSE`), `start_date`, `end_date`, `delivery_date` (YYYY-MM-DD; blank = no limit) |
 | `Names` | `name` |
 | `Orders` | `id`, `created_at`, `name`, `items`, `total`, `note`, `lines_json`, `seller`, `delivery_date` |

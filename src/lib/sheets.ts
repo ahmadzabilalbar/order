@@ -1,10 +1,11 @@
 import "server-only";
 import { JWT } from "google-auth-library";
+import { formatLine } from "./format";
 import type { Item, Order, OrderLine, Seller, Store } from "./types";
 
 /**
  * Google Sheets-backed store. One spreadsheet, four tabs:
- *   Items:   id | name | price | category | available | seller
+ *   Items:   id | name | price | category | available | seller | unit
  *   Sellers: id | name | active | start_date | end_date | delivery_date
  *   Names:   name
  *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date
@@ -13,7 +14,7 @@ import type { Item, Order, OrderLine, Seller, Store } from "./types";
  */
 
 const TABS = {
-  Items: ["id", "name", "price", "category", "available", "seller"],
+  Items: ["id", "name", "price", "category", "available", "seller", "unit"],
   Sellers: ["id", "name", "active", "start_date", "end_date", "delivery_date"],
   Names: ["name"],
   Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date"],
@@ -177,10 +178,11 @@ function toItem(c: Cell[]): Item {
     category: str(c[3]),
     available: bool(c[4]),
     seller: str(c[5]),
+    unit: str(c[6]),
   };
 }
 
-const itemCells = (i: Item): Cell[] => [i.id, i.name, i.price, i.category, i.available, i.seller];
+const itemCells = (i: Item): Cell[] => [i.id, i.name, i.price, i.category, i.available, i.seller, i.unit];
 
 function toSeller(c: Cell[], row: number): Seller {
   return {
@@ -262,7 +264,7 @@ export const sheetsStore: Store = {
   },
 
   async addOrder(o) {
-    const summary = o.lines.map((l) => `${l.qty}× ${l.name}`).join(", ");
+    const summary = o.lines.map(formatLine).join(", ");
     await appendRow("Orders", [
       o.id,
       o.createdAt,

@@ -1,4 +1,4 @@
-import { formatDay, formatPrice, formatTime } from "@/lib/format";
+import { formatDay, formatLine, formatPrice, formatTime } from "@/lib/format";
 import type { Order } from "@/lib/types";
 
 export function OrderList({ orders, title = "All orders" }: { orders: Order[]; title?: string }) {
@@ -41,7 +41,7 @@ export function OrderList({ orders, title = "All orders" }: { orders: Order[]; t
                     Delivery {formatDay(o.deliveryDate)}
                   </span>
                 )}
-                {o.lines.map((l) => `${l.qty}× ${l.name}`).join(", ")}
+                {o.lines.map(formatLine).join(", ")}
                 {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
               </div>
               <div className="flex items-center gap-3 text-sm sm:justify-end">

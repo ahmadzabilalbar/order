@@ -1,4 +1,4 @@
-import type { Seller } from "./types";
+import type { OrderLine, Seller } from "./types";
 
 const currency = process.env.NEXT_PUBLIC_CURRENCY || "MYR";
 const locale = process.env.NEXT_PUBLIC_LOCALE || "en-MY";
@@ -7,6 +7,9 @@ const timeZone = process.env.NEXT_PUBLIC_TIMEZONE || "Asia/Kuala_Lumpur";
 const money = new Intl.NumberFormat(locale, { style: "currency", currency });
 
 export const formatPrice = (n: number) => money.format(n);
+
+/** e.g. "2× Sosej Pintal (2 pcs/pack)" */
+export const formatLine = (l: OrderLine) => `${l.qty}× ${l.name}${l.unit ? ` (${l.unit})` : ""}`;
 
 export const formatTime = (iso: string) =>
   new Date(iso).toLocaleString(locale, {
