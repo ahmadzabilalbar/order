@@ -20,7 +20,6 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
     if (state?.ok) formRef.current?.reset();
   }, [state]);
 
-  const categories = [...new Set(items.map((i) => i.category).filter(Boolean))];
   const sellerName = (id: string) => sellers.find((s) => s.id === id)?.name;
   const shown = filter === ALL ? items : items.filter((i) => i.seller === filter);
   const hasSellers = sellers.length > 0;
@@ -61,15 +60,8 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
           <label className="label" htmlFor="new-unit">Unit</label>
           <input id="new-unit" name="unit" list="units" maxLength={30} placeholder="e.g. 2 pcs/pack" className="input" />
         </div>
-        <div className={hasSellers ? "sm:col-span-2" : "sm:col-span-4"}>
-          <label className="label" htmlFor="new-cat">Category</label>
-          <input id="new-cat" name="category" list="categories" maxLength={40} placeholder="Optional" className="input" />
-          <datalist id="categories">
-            {categories.map((c) => <option key={c} value={c} />)}
-          </datalist>
-        </div>
         {hasSellers && (
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-4">
             <label className="label" htmlFor="new-seller">Seller</label>
             <SellerSelect
               id="new-seller"
@@ -82,7 +74,7 @@ export function ItemManager({ items, sellers }: { items: Item[]; sellers: Seller
             />
           </div>
         )}
-        <button disabled={pending} className="btn-primary sm:col-span-2">
+        <button disabled={pending} className={`btn-primary ${hasSellers ? "sm:col-span-2" : "sm:col-span-6"}`}>
           {pending ? <Spinner /> : <span aria-hidden>+</span>}
           Add item
         </button>
@@ -127,13 +119,12 @@ function ItemRow({ item, sellers, sellerName }: { item: Item; sellers: Seller[];
           <input name="name" defaultValue={item.name} required maxLength={80} className="input sm:col-span-3" aria-label="Name" />
           <input name="price" defaultValue={item.price} required inputMode="decimal" className="input tabular-nums" aria-label="Price" />
           <input name="unit" defaultValue={item.unit} list="units" maxLength={30} className="input sm:col-span-2" aria-label="Unit" placeholder="Unit, e.g. 2 pcs/pack" />
-          <input name="category" defaultValue={item.category} maxLength={40} className={`input ${sellers.length ? "sm:col-span-2" : "sm:col-span-4"}`} aria-label="Category" placeholder="Category" />
           {sellers.length > 0 && (
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-4">
               <SellerSelect name="seller" sellers={sellers} defaultValue={item.seller} label="Seller" options={[{ value: "", label: "Every seller" }]} />
             </div>
           )}
-          <div className="flex gap-2 sm:col-span-2">
+          <div className={`flex gap-2 ${sellers.length ? "sm:col-span-2" : "sm:col-span-6"}`}>
             <button disabled={saving} className="btn-primary flex-1">{saving ? <Spinner /> : "Save"}</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-ghost">Cancel</button>
           </div>
@@ -150,7 +141,6 @@ function ItemRow({ item, sellers, sellerName }: { item: Item; sellers: Seller[];
         <p className="text-xs text-zinc-500">
           <span className="tabular-nums">{formatPrice(item.price)}</span>
           {item.unit && <> / {item.unit}</>}
-          {item.category && <> · {item.category}</>}
           {sellerName && <> · {sellerName}</>}
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}

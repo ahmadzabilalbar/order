@@ -41,13 +41,12 @@ async function guarded(tags: string | string[], fn: () => Promise<void>): Promis
 
 function parseItem(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 80);
-  const category = String(formData.get("category") ?? "").trim().slice(0, 40);
   const seller = String(formData.get("seller") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim().slice(0, 30);
   const price = Number(String(formData.get("price") ?? "").replace(",", "."));
   if (!name) throw new Error("Item name is required.");
   if (!Number.isFinite(price) || price < 0) throw new Error("Enter a valid price.");
-  return { name, category, seller, unit, price: Math.round(price * 100) / 100 };
+  return { name, seller, unit, price: Math.round(price * 100) / 100 };
 }
 
 const slugify = (text: string, fallback: string) =>
@@ -56,7 +55,7 @@ const slugify = (text: string, fallback: string) =>
 export async function addItem(_: unknown, formData: FormData) {
   return guarded("items", async () => {
     const fields = parseItem(formData);
-    await store.addItem({ id: slugify(fields.name, "item"), available: true, ...fields });
+    await store.addItem({ id: slugify(fields.name, "item"), available: true, category: "", ...fields });
   });
 }
 
