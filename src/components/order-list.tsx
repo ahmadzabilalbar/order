@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { formatDay, formatPrice, formatTime, sameName } from "@/lib/format";
+import { formatDay, formatLine, formatPrice, formatTime, sameName } from "@/lib/format";
 import type { Order, OrderLine } from "@/lib/types";
 
 const VIEWS = [
@@ -26,6 +26,8 @@ export function OrderList({
 }) {
   const [view, setView] = useState<View>("orders");
   const [query, setQuery] = useState("");
+  // Items one per line, or all on one line to keep rows short.
+  const [inline, setInline] = useState(false);
   const q = query.trim().toLowerCase();
   const orders = q ? allOrders.filter((o) => o.name.toLowerCase().includes(q)) : allOrders;
 
@@ -56,6 +58,17 @@ export function OrderList({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {view !== "items" && (
+              <button
+                type="button"
+                onClick={() => setInline((v) => !v)}
+                aria-pressed={inline}
+                title={inline ? "Show items one per line" : "Show items on one line"}
+                className="btn-ghost border border-zinc-200 px-2.5 py-1 text-xs dark:border-zinc-700"
+              >
+                {inline ? "Show as list" : "Show on one line"}
+              </button>
+            )}
             <div role="tablist" aria-label="View orders" className="flex rounded-lg bg-zinc-100 p-0.5 text-xs font-medium dark:bg-zinc-800">
               {VIEWS.map((v) => (
                 <button
@@ -87,7 +100,7 @@ export function OrderList({
       ) : view === "orders" ? (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {orders.map((o) => (
-            <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} />
+            <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} inline={inline} />
           ))}
         </ul>
       ) : view === "names" ? (
@@ -108,7 +121,7 @@ export function OrderList({
                   <li key={o.id} className="flex items-start gap-3 text-xs">
                     <div className="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
                       {badges && <Badges order={o} />}
-                      <Lines lines={o.lines} />
+                      <Lines lines={o.lines} inline={inline} />
                       {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
                     </div>
                     <span className="font-mono text-xs leading-5 text-zinc-400">#{o.id}</span>
@@ -145,7 +158,17 @@ export function OrderList({
   );
 }
 
-function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boolean; badges: boolean }) {
+function OrderRow({
+  order: o,
+  editable,
+  badges,
+  inline,
+}: {
+  order: Order;
+  editable?: boolean;
+  badges: boolean;
+  inline: boolean;
+}) {
   return (
     <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 sm:w-32 sm:shrink-0">
@@ -157,7 +180,7 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
       </div>
       <div className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-300">
         {badges && <Badges order={o} />}
-        <Lines lines={o.lines} />
+        <Lines lines={o.lines} inline={inline} />
         {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
       </div>
       <div className="flex items-center gap-3 text-sm sm:justify-end">
@@ -169,8 +192,9 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
   );
 }
 
-/** An order's items, one per line. */
-function Lines({ lines }: { lines: OrderLine[] }) {
+/** An order's items, one per line, or comma-separated on one line when `inline`. */
+function Lines({ lines, inline }: { lines: OrderLine[]; inline: boolean }) {
+  if (inline) return <span className="leading-5">{lines.map(formatLine).join(", ")}</span>;
   return (
     <ul className="space-y-0.5 leading-5">
       {lines.map((l) => (
