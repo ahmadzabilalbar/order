@@ -1,14 +1,21 @@
-import Link from "next/link";
-import { formatDay, formatLine, formatPrice, formatTime, sameName } from "@/lib/format";
-import type { Order } from "@/lib/types";
-import { OrderViews } from "./order-views";
+"use client";
 
-/**
- * All orders, viewable as a plain list, grouped by person, or totalled per item.
- * Every view is rendered on the server; OrderViews only switches between them.
- */
+import Link from "next/link";
+import { useState } from "react";
+import { formatDay, formatPrice, formatTime, sameName } from "@/lib/format";
+import type { Order, OrderLine } from "@/lib/types";
+
+const VIEWS = [
+  { id: "orders", label: "Orders" },
+  { id: "names", label: "By name" },
+  { id: "items", label: "By item" },
+] as const;
+
+type View = (typeof VIEWS)[number]["id"];
+
+/** All orders, searchable by name, viewable as a plain list, grouped by person, or totalled per item. */
 export function OrderList({
-  orders,
+  orders: allOrders,
   title = "All orders",
   editable,
 }: {
@@ -17,104 +24,130 @@ export function OrderList({
   /** Ids of orders that can still be edited; shows an Edit link on each. */
   editable?: Set<string>;
 }) {
+  const [view, setView] = useState<View>("orders");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const orders = q ? allOrders.filter((o) => o.name.toLowerCase().includes(q)) : allOrders;
+
   const total = orders.reduce((s, o) => s + o.total, 0);
-  const people = groupByName(orders);
-  const items = groupByItem(orders);
   // When every order has the same delivery date, show it once in the header
   // instead of on each row.
-  const shared = new Set(orders.map((o) => o.deliveryDate)).size === 1 ? orders[0] : undefined;
+  const shared = new Set(allOrders.map((o) => o.deliveryDate)).size === 1 ? allOrders[0] : undefined;
   const badges = !shared;
 
   return (
     <section className="card overflow-hidden">
-      <OrderViews
-        header={
-          <h2 className="font-semibold">
-            {title} <span className="ml-1 text-sm font-normal text-zinc-500 tabular-nums">({orders.length})</span>
-            {shared?.deliveryDate && (
-              <span className="ml-2 align-middle text-xs font-normal">
-                <Badges order={shared} />
-              </span>
-            )}
-          </h2>
-        }
-        total={
-          orders.length > 0 && (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4 dark:border-zinc-800">
+        <h2 className="font-semibold">
+          {title} <span className="ml-1 text-sm font-normal text-zinc-500 tabular-nums">({orders.length})</span>
+          {shared?.deliveryDate && (
+            <span className="ml-2 align-middle text-xs font-normal">
+              <Badges order={shared} />
+            </span>
+          )}
+        </h2>
+        {allOrders.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="search"
+              className="input w-full py-1.5 text-sm sm:w-44"
+              placeholder="Search name"
+              aria-label="Search orders by name"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div role="tablist" aria-label="View orders" className="flex rounded-lg bg-zinc-100 p-0.5 text-xs font-medium dark:bg-zinc-800">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === v.id}
+                  onClick={() => setView(v.id)}
+                  className={`rounded-md px-2.5 py-1 transition ${
+                    view === v.id
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
             <span className="text-sm text-zinc-500">
               Total <span className="font-semibold text-zinc-900 tabular-nums dark:text-zinc-100">{formatPrice(total)}</span>
             </span>
-          )
-        }
-        empty={orders.length === 0 ? <p className="px-5 py-10 text-center text-sm text-zinc-500">No orders yet.</p> : null}
-        views={{
-          orders: (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {orders.map((o) => (
-                <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} />
-              ))}
-            </ul>
-          ),
-          names: (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {people.map((p) => (
-                <li key={p.name} className="px-5 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-                      {p.name}{" "}
-                      <span className="ml-1 font-normal text-zinc-500">
-                        {p.orders.length} order{p.orders.length === 1 ? "" : "s"}
-                      </span>
-                    </p>
-                    <span className="text-sm font-semibold tabular-nums">{formatPrice(p.total)}</span>
-                  </div>
-                  <ul className="mt-1 space-y-1">
-                    {p.orders.map((o) => (
-                      <li key={o.id} className="flex items-start gap-3 text-xs">
-                        <div className="min-w-0 flex-1 leading-5 text-zinc-600 dark:text-zinc-300">
-                          {badges && <Badges order={o} />}
-                          {o.lines.map(formatLine).join(", ")}
-                          {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
-                        </div>
-                        <span className="font-mono text-xs leading-5 text-zinc-400">#{o.id}</span>
-                        <span className="leading-5 tabular-nums">{formatPrice(o.total)}</span>
-                        {editable?.has(o.id) && <EditLink id={o.id} />}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          ),
-          items: (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {items.map((it) => (
-                <li key={it.key} className="flex items-start gap-3 px-5 py-3">
-                  <span className="grid h-8 min-w-10 shrink-0 place-items-center rounded-lg bg-brand-50 px-2 text-sm font-bold text-brand-700 tabular-nums dark:bg-brand-500/10 dark:text-brand-400">
-                    {it.qty}×
+          </div>
+        )}
+      </div>
+      {allOrders.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-zinc-500">No orders yet.</p>
+      ) : orders.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-zinc-500">No orders for “{query.trim()}”.</p>
+      ) : view === "orders" ? (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {orders.map((o) => (
+            <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} />
+          ))}
+        </ul>
+      ) : view === "names" ? (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {groupByName(orders).map((p) => (
+            <li key={p.name} className="px-5 py-2.5">
+              <div className="flex items-center gap-3">
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  {p.name}{" "}
+                  <span className="ml-1 font-normal text-zinc-500">
+                    {p.orders.length} order{p.orders.length === 1 ? "" : "s"}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {it.name}
-                      {it.unit && <span className="font-normal text-zinc-500"> ({it.unit})</span>}
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      {it.buyers.map((b) => `${b.name} ×${b.qty}`).join(", ")}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums">{formatPrice(it.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          ),
-        }}
-      />
+                </p>
+                <span className="text-sm font-semibold tabular-nums">{formatPrice(p.total)}</span>
+              </div>
+              <ul className="mt-1 space-y-2">
+                {p.orders.map((o) => (
+                  <li key={o.id} className="flex items-start gap-3 text-xs">
+                    <div className="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
+                      {badges && <Badges order={o} />}
+                      <Lines lines={o.lines} />
+                      {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
+                    </div>
+                    <span className="font-mono text-xs leading-5 text-zinc-400">#{o.id}</span>
+                    <span className="leading-5 tabular-nums">{formatPrice(o.total)}</span>
+                    {editable?.has(o.id) && <EditLink id={o.id} />}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {groupByItem(orders).map((it) => (
+            <li key={it.key} className="flex items-start gap-3 px-5 py-3">
+              <span className="grid h-8 min-w-10 shrink-0 place-items-center rounded-lg bg-brand-50 px-2 text-sm font-bold text-brand-700 tabular-nums dark:bg-brand-500/10 dark:text-brand-400">
+                {it.qty}×
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {it.name}
+                  {it.unit && <span className="font-normal text-zinc-500"> ({it.unit})</span>}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  {it.buyers.map((b) => `${b.name} ×${b.qty}`).join(", ")}
+                </p>
+              </div>
+              <span className="text-sm font-semibold tabular-nums">{formatPrice(it.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boolean; badges: boolean }) {
   return (
-    <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-center sm:gap-4">
+    <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 sm:w-32 sm:shrink-0">
         <p className="truncate text-sm leading-5 font-medium">{o.name}</p>
         <p className="text-[11px] leading-4 text-zinc-500">
@@ -122,9 +155,9 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
           {o.updatedAt && <span title={`Edited ${formatTime(o.updatedAt)}`}> · edited</span>}
         </p>
       </div>
-      <div className="min-w-0 flex-1 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
+      <div className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-300">
         {badges && <Badges order={o} />}
-        {o.lines.map(formatLine).join(", ")}
+        <Lines lines={o.lines} />
         {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
       </div>
       <div className="flex items-center gap-3 text-sm sm:justify-end">
@@ -136,11 +169,28 @@ function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boo
   );
 }
 
+/** An order's items, one per line. */
+function Lines({ lines }: { lines: OrderLine[] }) {
+  return (
+    <ul className="space-y-0.5 leading-5">
+      {lines.map((l) => (
+        <li key={l.itemId} className="flex gap-1.5">
+          <span className="w-6 shrink-0 text-right text-zinc-400 tabular-nums">{l.qty}×</span>
+          <span className="min-w-0">
+            {l.name}
+            {l.unit && <span className="text-zinc-500"> ({l.unit})</span>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Badges({ order: o }: { order: Order }) {
   return (
     <>
       {o.deliveryDate && (
-        <span className="mr-2 inline-block rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+        <span className="mr-2 mb-1 inline-block rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
           Delivery {formatDay(o.deliveryDate)}
         </span>
       )}{" "}
