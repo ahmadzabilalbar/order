@@ -58,10 +58,11 @@ export function OrderForm({
   const [cart, setCart] = useState<Record<string, number>>(() =>
     Object.fromEntries((editing?.lines ?? []).map((l) => [l.itemId, l.qty])),
   );
-  const [note, setNote] = useState(editing?.note ?? "");
+  // Notes can no longer be entered; an edited order keeps the note it already has.
+  const note = editing?.note ?? "";
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReactNode>("");
   const [placed, setPlaced] = useState<Order | null>(null);
   const [pending, startTransition] = useTransition();
   const [pickedSeller, setPickedSeller] = useState(editingSeller?.id ?? "");
@@ -114,13 +115,25 @@ export function OrderForm({
       const res = editing
         ? await updateOrder(editing.id, { confirmName: confirmedName ?? "", note, cart })
         : await placeOrder({ name, note, cart, sellerId: seller?.id ?? "" });
-      if (!res.ok) return setError(res.error);
+      if (!res.ok) {
+        return setError(
+          "existingId" in res ? (
+            <>
+              {res.error}{" "}
+              <Link href={`/?edit=${res.existingId}`} className="underline underline-offset-2">
+                Edit that order instead
+              </Link>
+            </>
+          ) : (
+            res.error
+          ),
+        );
+      }
       try {
         localStorage.setItem(NAME_KEY, name);
       } catch {}
       setPlaced(res.data!);
       setCart({});
-      setNote("");
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
@@ -150,11 +163,25 @@ export function OrderForm({
           )
         }
         subtitle={
-          seller.endDate || seller.deliveryDate ? (
+          seller.startDate || seller.endDate || seller.deliveryDate ? (
             <div className="flex flex-wrap gap-2 text-sm">
-              {seller.endDate && (
+              {(seller.startDate || seller.endDate) && (
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                  Order by <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
+                  {seller.startDate && seller.endDate ? (
+                    <>
+                      Order <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.startDate)}</strong>
+                      –
+                      <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
+                    </>
+                  ) : seller.endDate ? (
+                    <>
+                      Order by <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
+                    </>
+                  ) : (
+                    <>
+                      Order from <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.startDate)}</strong>
+                    </>
+                  )}
                 </span>
               )}
               {seller.deliveryDate && (
@@ -405,13 +432,6 @@ export function OrderForm({
             </p>
           )}
           <Summary lines={lines} total={total} name={name} onQty={setQty} />
-          <textarea
-            className="input mt-4 min-h-20 resize-none"
-            placeholder="Note (optional) — e.g. less sugar"
-            maxLength={300}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
           {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{error}</p>}
           <button type="button" onClick={submit} disabled={pending} className="btn-primary mt-4 w-full py-3">
             {pending ? <Spinner /> : null}
@@ -427,8 +447,6 @@ export function OrderForm({
           error={error}
           onSubmit={submit}
           submitLabel={editing ? "Save changes" : "Place order"}
-          note={note}
-          setNote={setNote}
           lines={lines}
           name={name}
           onQty={setQty}
@@ -488,11 +506,9 @@ function MobileBar(props: {
   count: number;
   total: number;
   pending: boolean;
-  error: string;
+  error: ReactNode;
   onSubmit: () => void;
   submitLabel: string;
-  note: string;
-  setNote: (v: string) => void;
   lines: Line[];
   name: string;
   onQty: (id: string, qty: number) => void;
@@ -506,13 +522,6 @@ function MobileBar(props: {
           <div className="max-h-[60vh] overflow-y-auto pb-3">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-700" />
             <Summary lines={props.lines} total={props.total} name={props.name} onQty={props.onQty} />
-            <textarea
-              className="input mt-3 min-h-16 resize-none"
-              placeholder="Note (optional)"
-              maxLength={300}
-              value={props.note}
-              onChange={(e) => props.setNote(e.target.value)}
-            />
           </div>
         )}
         {props.error && <p className="mb-2 text-sm font-medium text-red-600 dark:text-red-400">{props.error}</p>}

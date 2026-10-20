@@ -54,10 +54,36 @@ async function buildOrder(input: OrderInput): Promise<{ ok: true; data: Built } 
   return { ok: true, data: { name, note, seller, sellerId, deliveryDate, lines, total } };
 }
 
-export async function placeOrder(input: OrderInput): Promise<ActionResult<Order>> {
+/**
+ * An order already placed under this name for the same seller in its current
+ * ordering window (or anywhere, when there are no sellers). One order per name.
+ */
+async function existingOrder(name: string, sellerId: string) {
+  const [orders, sellers] = await Promise.all([store.listOrders(Infinity), store.listSellers()]);
+  const seller = sellers.find((s) => s.id === sellerId);
+  return orders.find(
+    (o) =>
+      sameName(o.name, name) &&
+      (!seller ||
+        (orderSeller(o, sellers)?.id === seller.id &&
+          (!seller.startDate || todayISO(new Date(o.createdAt)) >= seller.startDate))),
+  );
+}
+
+export async function placeOrder(
+  input: OrderInput,
+): Promise<ActionResult<Order> | { ok: false; error: string; existingId: string }> {
   try {
     const built = await buildOrder(input);
     if (!built.ok) return built;
+    const existing = await existingOrder(built.data.name, built.data.sellerId);
+    if (existing) {
+      return {
+        ok: false,
+        error: `${existing.name} already has an order (#${existing.id}).`,
+        existingId: existing.id,
+      };
+    }
     const order: Order = {
       id: randomUUID().slice(0, 8).toUpperCase(),
       createdAt: new Date().toISOString(),

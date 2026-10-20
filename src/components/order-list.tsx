@@ -20,6 +20,10 @@ export function OrderList({
   const total = orders.reduce((s, o) => s + o.total, 0);
   const people = groupByName(orders);
   const items = groupByItem(orders);
+  // When every order is for the same seller and delivery date, say so once in the
+  // header instead of repeating the badges on each row.
+  const shared = new Set(orders.map((o) => `${o.seller}|${o.deliveryDate}`)).size === 1 ? orders[0] : undefined;
+  const badges = !shared;
 
   return (
     <section className="card overflow-hidden">
@@ -27,6 +31,11 @@ export function OrderList({
         header={
           <h2 className="font-semibold">
             {title} <span className="ml-1 text-sm font-normal text-zinc-500 tabular-nums">({orders.length})</span>
+            {shared && (shared.seller || shared.deliveryDate) && (
+              <span className="ml-2 align-middle text-xs font-normal">
+                <Badges order={shared} />
+              </span>
+            )}
           </h2>
         }
         total={
@@ -41,14 +50,14 @@ export function OrderList({
           orders: (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {orders.map((o) => (
-                <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} />
+                <OrderRow key={o.id} order={o} editable={editable?.has(o.id)} badges={badges} />
               ))}
             </ul>
           ),
           names: (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {people.map((p) => (
-                <li key={p.name} className="px-5 py-3.5">
+                <li key={p.name} className="px-5 py-2.5">
                   <div className="flex items-center gap-3">
                     <Avatar name={p.name} />
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -59,16 +68,16 @@ export function OrderList({
                     </p>
                     <span className="text-sm font-semibold tabular-nums">{formatPrice(p.total)}</span>
                   </div>
-                  <ul className="mt-2 space-y-1.5 pl-11">
+                  <ul className="mt-1 space-y-1 pl-10">
                     {p.orders.map((o) => (
-                      <li key={o.id} className="flex items-start gap-3 text-sm">
-                        <div className="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
-                          <Badges order={o} />
+                      <li key={o.id} className="flex items-start gap-3 text-xs">
+                        <div className="min-w-0 flex-1 leading-5 text-zinc-600 dark:text-zinc-300">
+                          {badges && <Badges order={o} />}
                           {o.lines.map(formatLine).join(", ")}
                           {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
                         </div>
                         <span className="font-mono text-xs leading-5 text-zinc-400">#{o.id}</span>
-                        <span className="tabular-nums">{formatPrice(o.total)}</span>
+                        <span className="leading-5 tabular-nums">{formatPrice(o.total)}</span>
                         {editable?.has(o.id) && <EditLink id={o.id} />}
                       </li>
                     ))}
@@ -109,21 +118,21 @@ export function OrderList({
   );
 }
 
-function OrderRow({ order: o, editable }: { order: Order; editable?: boolean }) {
+function OrderRow({ order: o, editable, badges }: { order: Order; editable?: boolean; badges: boolean }) {
   return (
-    <li className="flex flex-col gap-1 px-5 py-3.5 sm:flex-row sm:items-center sm:gap-4">
-      <div className="flex items-center gap-3 sm:w-48 sm:shrink-0">
+    <li className="flex flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex items-center gap-2.5 sm:w-40 sm:shrink-0">
         <Avatar name={o.name} />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{o.name}</p>
-          <p className="text-xs text-zinc-500">
+          <p className="truncate text-sm leading-5 font-medium">{o.name}</p>
+          <p className="text-[11px] leading-4 text-zinc-500">
             {o.createdAt ? formatTime(o.createdAt) : ""}
             {o.updatedAt && <span title={`Edited ${formatTime(o.updatedAt)}`}> · edited</span>}
           </p>
         </div>
       </div>
-      <div className="min-w-0 flex-1 text-sm text-zinc-600 dark:text-zinc-300">
-        <Badges order={o} />
+      <div className="min-w-0 flex-1 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
+        {badges && <Badges order={o} />}
         {o.lines.map(formatLine).join(", ")}
         {o.note && <span className="block text-xs text-zinc-500 italic">“{o.note}”</span>}
       </div>
@@ -138,7 +147,7 @@ function OrderRow({ order: o, editable }: { order: Order; editable?: boolean }) 
 
 function Avatar({ name }: { name: string }) {
   return (
-    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
       {name.charAt(0).toUpperCase()}
     </span>
   );
@@ -166,7 +175,7 @@ function EditLink({ id }: { id: string }) {
     <Link
       href={`/?edit=${id}`}
       aria-label={`Edit order ${id}`}
-      className="btn-ghost ml-auto border border-zinc-200 px-2.5 py-1 text-xs sm:ml-1 dark:border-zinc-700"
+      className="btn-ghost ml-auto border border-zinc-200 px-2 py-0.5 text-xs sm:ml-1 dark:border-zinc-700"
     >
       Edit
     </Link>

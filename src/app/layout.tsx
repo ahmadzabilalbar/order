@@ -7,7 +7,7 @@ import "./globals.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME || "Order";
+const appName = process.env.NEXT_PUBLIC_APP_NAME || "Order Sini";
 
 export const metadata: Metadata = {
   title: appName,
