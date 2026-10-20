@@ -265,42 +265,45 @@ export function OrderForm({
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {visible.map((item) => {
-                const qty = cart[item.id] ?? 0;
-                return (
-                  <div
-                    key={item.id}
-                    className={`card flex items-center gap-3 p-4 transition ${
-                      qty ? "border-brand-500/60 ring-4 ring-brand-500/10 dark:border-brand-500/50" : ""
-                    }`}
-                  >
-                    <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-lg font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
-                      {item.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{item.name}</p>
-                      <p className="text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-                        {formatPrice(item.price)}
-                        {item.unit && <span className="text-zinc-400 dark:text-zinc-500"> · {item.unit}</span>}
-                      </p>
-                    </div>
-                    {qty === 0 ? (
-                      <button type="button" onClick={() => setQty(item.id, 1)} className="btn-primary px-3.5 py-2">
-                        Add
-                      </button>
-                    ) : (
-                      <Stepper qty={qty} onChange={(q) => setQty(item.id, q)} label={item.name} />
-                    )}
-                  </div>
-                );
-              })}
-              {!visible.length && (
-                <p className="col-span-full py-10 text-center text-sm text-zinc-500">
-                  {menu.length ? "No items match your search." : `${seller?.name ?? "This seller"} has no items yet.`}
-                </p>
-              )}
-            </div>
+            {visible.length ? (
+              <ul className="card divide-y divide-zinc-100 overflow-hidden dark:divide-zinc-800">
+                {visible.map((item) => {
+                  const qty = cart[item.id] ?? 0;
+                  return (
+                    <li
+                      key={item.id}
+                      className={`flex min-h-14 items-center gap-3 py-2 pr-2 pl-4 transition ${
+                        qty ? "bg-brand-50/70 shadow-[inset_3px_0_0] shadow-brand-500 dark:bg-brand-500/5" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{item.name}</p>
+                        <p className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
+                          {formatPrice(item.price)}
+                          {item.unit && <span className="text-zinc-400 dark:text-zinc-500"> · {item.unit}</span>}
+                        </p>
+                      </div>
+                      {qty === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setQty(item.id, 1)}
+                          aria-label={`Add ${item.name}`}
+                          className="btn-primary h-8 px-3 py-0 text-xs"
+                        >
+                          Add
+                        </button>
+                      ) : (
+                        <Stepper qty={qty} onChange={(q) => setQty(item.id, q)} label={item.name} small />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="card py-10 text-center text-sm text-zinc-500">
+                {menu.length ? "No items match your search." : `${seller?.name ?? "This seller"} has no items yet.`}
+              </p>
+            )}
           </section>
         </div>
 
