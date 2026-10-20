@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
-import { formatPrice } from "@/lib/format";
+import { formatDay, formatPrice, sellerStatus } from "@/lib/format";
 import type { Item, Order, Seller } from "@/lib/types";
 import { Spinner } from "@/components/spinner";
 import { placeOrder } from "./actions";
@@ -23,6 +23,7 @@ export function OrderForm({
   names,
   sellers,
   sellersEnabled,
+  today,
 }: {
   items: Item[];
   names: string[];
@@ -30,6 +31,8 @@ export function OrderForm({
   sellers: Seller[];
   /** True when the sheet has any sellers at all (active or not). */
   sellersEnabled: boolean;
+  /** Server's date (YYYY-MM-DD) used for ordering windows. */
+  today: string;
 }) {
   // The last name used on this device is the default until the user picks one.
   const saved = useSyncExternalStore(noopSubscribe, readSavedName, () => null);
@@ -46,8 +49,10 @@ export function OrderForm({
   const [placed, setPlaced] = useState<Order | null>(null);
   const [pending, startTransition] = useTransition();
   const [pickedSeller, setPickedSeller] = useState("");
-  // Fall back to the first open seller if the chosen one was switched off.
-  const seller = sellers.find((s) => s.id === pickedSeller) ?? sellers[0];
+  // Only sellers inside their ordering window can be picked; fall back to the
+  // first open one if the chosen seller closed or was switched off.
+  const openSellers = sellers.filter((s) => sellerStatus(s, today) === "open");
+  const seller = openSellers.find((s) => s.id === pickedSeller) ?? openSellers[0];
 
   // Items without a seller are offered by every seller.
   const menu = sellersEnabled ? items.filter((i) => !i.seller || i.seller === seller?.id) : items;
@@ -103,12 +108,25 @@ export function OrderForm({
 
   if (placed) return <Confirmation order={placed} onReset={() => setPlaced(null)} />;
 
-  if (sellersEnabled && !sellers.length) {
+  if (sellersEnabled && !openSellers.length) {
+    const upcoming = sellers
+      .filter((s) => sellerStatus(s, today) === "upcoming")
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
     return (
       <div className="card grid place-items-center px-6 py-16 text-center">
         <p className="text-4xl">🌙</p>
-        <p className="mt-3 font-medium">No sellers are open right now</p>
-        <p className="mt-1 text-sm text-zinc-500">Please check back later.</p>
+        <p className="mt-3 font-medium">No sellers are taking orders right now</p>
+        {upcoming.length ? (
+          <ul className="mt-3 space-y-1 text-sm text-zinc-500">
+            {upcoming.map((s) => (
+              <li key={s.id}>
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.name}</span> opens {formatDay(s.startDate)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm text-zinc-500">Please check back later.</p>
+        )}
       </div>
     );
   }
@@ -129,7 +147,22 @@ export function OrderForm({
         {sellersEnabled && seller && (
           <section className="card p-4 sm:p-5">
             <StepTitle n={1} title="Order from" />
-            <SellerSelect sellers={sellers} value={seller.id} onChange={chooseSeller} />
+            <SellerSelect sellers={sellers} today={today} value={seller.id} onChange={chooseSeller} />
+            {(seller.endDate || seller.deliveryDate) && (
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                {seller.endDate && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                    Order by <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{formatDay(seller.endDate)}</strong>
+                  </span>
+                )}
+                {seller.deliveryDate && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                    <TruckIcon />
+                    Delivery on <strong className="font-semibold">{formatDay(seller.deliveryDate)}</strong>
+                  </span>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -248,6 +281,7 @@ export function OrderForm({
         {seller && sellersEnabled && (
           <p className="-mt-1 mb-2 text-sm text-zinc-500 dark:text-zinc-400">
             From <span className="font-medium text-zinc-900 dark:text-zinc-100">{seller.name}</span>
+            {seller.deliveryDate && <> · Delivery {formatDay(seller.deliveryDate)}</>}
           </p>
         )}
         <Summary lines={lines} total={total} name={name} onQty={setQty} />
@@ -395,6 +429,12 @@ function Confirmation({ order, onReset }: { order: Order; onReset: () => void })
           <span className="text-zinc-500">Order #</span>
           <span className="font-mono font-semibold">{order.id}</span>
         </div>
+        {order.deliveryDate && (
+          <div className="mb-4 flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+            <span className="flex items-center gap-2"><TruckIcon /> Delivery date</span>
+            <span className="font-semibold">{formatDay(order.deliveryDate)}</span>
+          </div>
+        )}
         <ul className="space-y-2 text-sm">
           {order.lines.map((l) => (
             <li key={l.itemId} className="flex justify-between gap-4">
@@ -433,12 +473,24 @@ function Stepper({ qty, onChange, label, small }: { qty: number; onChange: (q: n
   );
 }
 
+export function TruckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+      <circle cx="17" cy="18" r="2" />
+      <circle cx="7" cy="18" r="2" />
+    </svg>
+  );
+}
+
 function SellerSelect({
   sellers,
+  today,
   value,
   onChange,
 }: {
   sellers: Seller[];
+  today: string;
   value: string;
   onChange: (id: string) => void;
 }) {
@@ -450,11 +502,16 @@ function SellerSelect({
         onChange={(e) => onChange(e.target.value)}
         className="input cursor-pointer appearance-none py-3 pr-10 text-base font-medium"
       >
-        {sellers.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
+        {sellers.map((s) => {
+          const status = sellerStatus(s, today);
+          const note = status === "upcoming" ? ` (opens ${formatDay(s.startDate)})` : status === "ended" ? " (closed)" : "";
+          return (
+            <option key={s.id} value={s.id} disabled={status !== "open"}>
+              {s.name}
+              {note}
+            </option>
+          );
+        })}
       </select>
       <svg viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="m6 9 6 6 6-6" />

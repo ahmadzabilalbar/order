@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { updateTag } from "next/cache";
+import { sellerStatus, todayISO } from "@/lib/format";
 import { store } from "@/lib/store";
 import type { ActionResult, Order } from "@/lib/types";
 
@@ -25,10 +26,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<ActionResult<O
     // When sellers are set up, the order must be for an active seller and may only
     // contain that seller's items (or items shared by all sellers).
     let seller = "";
+    let deliveryDate = "";
     if (sellers.length) {
       const chosen = sellers.find((s) => s.id === input.sellerId);
-      if (!chosen?.active) return { ok: false, error: "Please choose an open seller." };
+      if (!chosen || sellerStatus(chosen, todayISO()) !== "open") {
+        return { ok: false, error: "This seller isn't taking orders right now. Please pick another." };
+      }
       seller = chosen.name;
+      deliveryDate = chosen.deliveryDate;
     }
     const sellsItem = (sellerOfItem: string) =>
       !sellers.length || !sellerOfItem || sellerOfItem === input.sellerId;
@@ -49,6 +54,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<ActionResult<O
       name,
       note,
       seller,
+      deliveryDate,
       lines,
       total: Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100,
     };

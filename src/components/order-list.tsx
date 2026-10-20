@@ -1,4 +1,4 @@
-import { formatPrice, formatTime } from "@/lib/format";
+import { formatDay, formatPrice, formatTime } from "@/lib/format";
 import type { Order } from "@/lib/types";
 
 export function OrderList({ orders, title = "All orders" }: { orders: Order[]; title?: string }) {
@@ -34,6 +34,11 @@ export function OrderList({ orders, title = "All orders" }: { orders: Order[]; t
                 {o.seller && (
                   <span className="mr-2 inline-block rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                     {o.seller}
+                  </span>
+                )}
+                {o.deliveryDate && (
+                  <span className="mr-2 inline-block rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                    Delivery {formatDay(o.deliveryDate)}
                   </span>
                 )}
                 {o.lines.map((l) => `${l.qty}× ${l.name}`).join(", ")}

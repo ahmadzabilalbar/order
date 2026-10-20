@@ -19,9 +19,10 @@ const db: Db = (g.__orderDb ??= {
     { id: "brownie", name: "Fudge Brownie", price: 5.5, category: "Dessert", available: false, seller: "" },
   ],
   sellers: [
-    { id: "kopi", name: "Kopi Sini", active: true },
-    { id: "dapur", name: "Dapur Sini", active: true },
-    { id: "roti", name: "Roti Corner", active: false },
+    { id: "kopi", name: "Kopi Sini", active: true, startDate: "", endDate: "", deliveryDate: "" },
+    { id: "dapur", name: "Dapur Sini", active: true, startDate: "2026-01-01", endDate: "2030-12-31", deliveryDate: "2031-01-03" },
+    { id: "kerabu", name: "Nasi Kerabu Pak Su", active: true, startDate: "2030-01-01", endDate: "", deliveryDate: "" },
+    { id: "roti", name: "Roti Corner", active: false, startDate: "", endDate: "", deliveryDate: "" },
   ],
   names: ["Aina", "Daniel", "Farah", "Hafiz", "Mei Ling"],
   orders: [],

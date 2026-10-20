@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, sellerStatus, todayISO } from "@/lib/format";
 import { isDemo, store } from "@/lib/store";
 import { DemoBanner } from "@/components/demo-banner";
 import { OrderList } from "@/components/order-list";
@@ -22,7 +23,10 @@ export default function AdminPage() {
 }
 
 async function AdminGate() {
+  // Session expiry and today's date depend on the current time, so render per request.
+  await connection();
   if (!(await isAdmin())) return <LoginForm />;
+  const today = todayISO();
 
   const [items, sellers, names, orders] = await Promise.all([
     store.listItems(),
@@ -47,7 +51,7 @@ async function AdminGate() {
       {isDemo && <DemoBanner />}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Active sellers" value={`${sellers.filter((s) => s.active).length} / ${sellers.length}`} />
+        <Stat label="Sellers open now" value={`${sellers.filter((s) => sellerStatus(s, today) === "open").length} / ${sellers.length}`} />
         <Stat label="Items available" value={`${items.filter((i) => i.available).length} / ${items.length}`} />
         <Stat label="Orders" value={orders.length} />
         <Stat label="Revenue" value={formatPrice(revenue)} />
@@ -56,7 +60,7 @@ async function AdminGate() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
         <ItemManager items={items} sellers={sellers} />
         <div className="space-y-6">
-          <SellerManager sellers={sellers} items={items} />
+          <SellerManager sellers={sellers} items={items} today={today} />
           <NameManager names={names} />
         </div>
       </div>

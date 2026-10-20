@@ -12,6 +12,12 @@ export type Seller = {
   id: string;
   name: string;
   active: boolean;
+  /** First day orders are accepted (YYYY-MM-DD); empty = no start limit. */
+  startDate: string;
+  /** Last day orders are accepted (YYYY-MM-DD); empty = no end limit. */
+  endDate: string;
+  /** When orders are delivered (YYYY-MM-DD); empty = not announced. */
+  deliveryDate: string;
 };
 
 export type OrderLine = {
@@ -30,6 +36,8 @@ export type Order = {
   note: string;
   /** Seller name at the time of ordering (empty when sellers aren't used). */
   seller: string;
+  /** Seller's delivery date at the time of ordering (YYYY-MM-DD or empty). */
+  deliveryDate: string;
 };
 
 export type ActionResult<T = undefined> =

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { todayISO } from "@/lib/format";
 import { getMenu, getNames, getOrders, getSellers, isDemo } from "@/lib/store";
 import { DemoBanner } from "@/components/demo-banner";
 import { OrderList } from "@/components/order-list";
@@ -39,6 +40,7 @@ async function Menu() {
         names={names}
         sellers={sellers.filter((s) => s.active)}
         sellersEnabled={sellers.length > 0}
+        today={todayISO()}
       />
     </>
   );

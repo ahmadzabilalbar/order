@@ -71,15 +71,44 @@ export async function deleteItem(id: string) {
   return guarded("items", () => store.deleteItem(id));
 }
 
+function parseSeller(formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
+  const date = (key: string) => {
+    const v = String(formData.get(key) ?? "").trim();
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error("Dates must be YYYY-MM-DD.");
+    return v;
+  };
+  const startDate = date("startDate");
+  const endDate = date("endDate");
+  const deliveryDate = date("deliveryDate");
+  if (!name) throw new Error("Seller name is required.");
+  if (startDate && endDate && endDate < startDate) throw new Error("End date must be on or after the start date.");
+  if (deliveryDate && startDate && deliveryDate < startDate) {
+    throw new Error("Delivery date can't be before the start date.");
+  }
+  return { name, startDate, endDate, deliveryDate };
+}
+
+async function assertUniqueSeller(name: string, exceptId?: string) {
+  const existing = await store.listSellers();
+  if (existing.some((s) => s.id !== exceptId && s.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error(`"${name}" already exists.`);
+  }
+}
+
 export async function addSeller(_: unknown, formData: FormData) {
   return guarded("sellers", async () => {
-    const name = String(formData.get("name") ?? "").trim().slice(0, 60);
-    if (!name) throw new Error("Seller name is required.");
-    const existing = await store.listSellers();
-    if (existing.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error(`"${name}" already exists.`);
-    }
-    await store.addSeller({ id: slugify(name, "seller"), name, active: true });
+    const fields = parseSeller(formData);
+    await assertUniqueSeller(fields.name);
+    await store.addSeller({ id: slugify(fields.name, "seller"), active: true, ...fields });
+  });
+}
+
+export async function updateSeller(id: string, _: unknown, formData: FormData) {
+  return guarded("sellers", async () => {
+    const fields = parseSeller(formData);
+    await assertUniqueSeller(fields.name, id);
+    await store.updateSeller(id, fields);
   });
 }
 

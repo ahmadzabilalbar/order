@@ -7,7 +7,7 @@ A simple ordering app. People pick their name and order from a menu. An admin ma
 ## Features
 
 - **Order page (`/`)**: pick a seller from the dropdown (active sellers only), pick your name (or type one), search and filter the menu, adjust quantities, add a note and place the order. Works well on mobile, with a bottom-sheet cart. Your name is remembered on this device.
-- **Admin (`/admin`)**: password login. Add sellers and switch them active or inactive. Add, edit and delete items and prices, hide or show an item, manage the name list, and see recent orders and revenue.
+- **Admin (`/admin`)**: password login. Add sellers, switch them active or inactive, and set each one's order start/end dates and delivery date. Add, edit and delete items and prices, hide or show an item, manage the name list, and see recent orders and revenue.
 - **Google Sheets storage**: the `Items`, `Names` and `Orders` tabs are created automatically. You can also edit the sheet directly; the menu picks up changes within about a minute.
 - **Safe by default**: prices are recalculated on the server, all sheet writes use `RAW` input so typed text can't run as formulas, and the admin session is a signed HttpOnly cookie.
 - **Demo mode**: without Google credentials the app runs on an in-memory store, so you can try it right away.
@@ -47,9 +47,9 @@ Open http://localhost:3000, and http://localhost:3000/admin for the admin page.
 | Tab | Columns |
 | --- | --- |
 | `Items` | `id`, `name`, `price`, `category`, `available`, `seller` (seller id; blank = every seller) |
-| `Sellers` | `id`, `name`, `active` (`TRUE`/`FALSE`) |
+| `Sellers` | `id`, `name`, `active` (`TRUE`/`FALSE`), `start_date`, `end_date`, `delivery_date` (YYYY-MM-DD; blank = no limit) |
 | `Names` | `name` |
-| `Orders` | `id`, `created_at`, `name`, `items`, `total`, `note`, `lines_json`, `seller` |
+| `Orders` | `id`, `created_at`, `name`, `items`, `total`, `note`, `lines_json`, `seller`, `delivery_date` |
 
 ## Deploy to Vercel
 

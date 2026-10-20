@@ -5,18 +5,18 @@ import type { Item, Order, OrderLine, Seller, Store } from "./types";
 /**
  * Google Sheets-backed store. One spreadsheet, four tabs:
  *   Items:   id | name | price | category | available | seller
- *   Sellers: id | name | active
+ *   Sellers: id | name | active | start_date | end_date | delivery_date
  *   Names:   name
- *   Orders:  id | created_at | name | items | total | note | lines_json | seller
+ *   Orders:  id | created_at | name | items | total | note | lines_json | seller | delivery_date
  * Missing tabs and header rows are created automatically on first use, and
  * headers from an older version gain the new columns.
  */
 
 const TABS = {
   Items: ["id", "name", "price", "category", "available", "seller"],
-  Sellers: ["id", "name", "active"],
+  Sellers: ["id", "name", "active", "start_date", "end_date", "delivery_date"],
   Names: ["name"],
-  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller"],
+  Orders: ["id", "created_at", "name", "items", "total", "note", "lines_json", "seller", "delivery_date"],
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -160,6 +160,15 @@ const str = (v: Cell | undefined) => String(v ?? "").trim();
 const bool = (v: Cell | undefined) =>
   v === undefined || v === "" ? true : !["false", "no", "0"].includes(str(v).toLowerCase());
 
+/** Accepts "YYYY-MM-DD" text or a date typed into the sheet (a day serial number). */
+function day(v: Cell | undefined) {
+  if (typeof v === "number") {
+    return new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86_400_000).toISOString().slice(0, 10);
+  }
+  const s = str(v);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+
 function toItem(c: Cell[]): Item {
   return {
     id: str(c[0]),
@@ -174,8 +183,17 @@ function toItem(c: Cell[]): Item {
 const itemCells = (i: Item): Cell[] => [i.id, i.name, i.price, i.category, i.available, i.seller];
 
 function toSeller(c: Cell[], row: number): Seller {
-  return { id: str(c[0]) || `row-${row}`, name: str(c[1]), active: bool(c[2]) };
+  return {
+    id: str(c[0]) || `row-${row}`,
+    name: str(c[1]),
+    active: bool(c[2]),
+    startDate: day(c[3]),
+    endDate: day(c[4]),
+    deliveryDate: day(c[5]),
+  };
 }
+
+const sellerCells = (s: Seller): Cell[] => [s.id, s.name, s.active, s.startDate, s.endDate, s.deliveryDate];
 
 function toOrder(c: Cell[]): Order {
   let lines: OrderLine[] = [];
@@ -190,6 +208,7 @@ function toOrder(c: Cell[]): Order {
     total: Number(c[4]) || 0,
     note: str(c[5]),
     seller: str(c[7]),
+    deliveryDate: day(c[8]),
   };
 }
 
@@ -221,12 +240,11 @@ export const sheetsStore: Store = {
     return (await readRows("Sellers")).map((r) => toSeller(r.cells, r.row)).filter((s) => s.name);
   },
   async addSeller(seller) {
-    await appendRow("Sellers", [seller.id, seller.name, seller.active]);
+    await appendRow("Sellers", sellerCells(seller));
   },
   async updateSeller(id, patch) {
     const { row, cells } = await findRow("Sellers", id);
-    const next = { ...toSeller(cells, row), ...patch };
-    await writeRow("Sellers", row, [str(cells[0]) || id, next.name, next.active]);
+    await writeRow("Sellers", row, sellerCells({ ...toSeller(cells, row), ...patch, id: str(cells[0]) || id }));
   },
   async deleteSeller(id) {
     await deleteRow("Sellers", (await findRow("Sellers", id)).row);
@@ -254,6 +272,7 @@ export const sheetsStore: Store = {
       o.note,
       JSON.stringify(o.lines),
       o.seller,
+      o.deliveryDate,
     ]);
   },
   async listOrders(limit) {
